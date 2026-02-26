@@ -17,7 +17,7 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
-// Garante autenticação anônima para motoristas que abrem o link sem conta
+// Login anônimo automático para motoristas que abrem o link sem conta
 export async function ensureAuth() {
   if (!auth.currentUser) {
     await signInAnonymously(auth);
