@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { FileDown, Search, Building2, X, Trash2, Loader2 } from 'lucide-react';
+import { FileDown, Search, Building2, X, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { getTrips, getCompanies, deleteTrip } from '../services/firebaseService';
 import { generateTripPDF, generateTripsReportPDF } from '../services/reportService';
 
@@ -11,16 +12,16 @@ export default function Trips() {
   const [filterDay, setFilterDay]         = useState('');
   const [filterMonth, setFilterMonth]     = useState('');
   const [filterCompany, setFilterCompany] = useState('');
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [deletingId, setDeletingId]           = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  useEffect(() => {
-    Promise.all([getTrips(), getCompanies()]).then(([t, c]) => {
-      setTrips(t);
-      setFilteredTrips(t);
-      setCompanies(c);
-    });
-  }, []);
+  const fetchData = async () => {
+    const [t, c] = await Promise.all([getTrips(), getCompanies()]);
+    setTrips(t);
+    setFilteredTrips(t);
+    setCompanies(c);
+  };
+
+  useEffect(() => { fetchData(); }, []);
 
   useEffect(() => {
     let result = trips;
@@ -43,13 +44,12 @@ export default function Trips() {
   const hasActiveFilter = !!(searchTerm || filterDay || filterMonth || filterCompany);
 
   const handleDelete = async (id: string) => {
-    setDeletingId(id);
     try {
       await deleteTrip(id);
-      setTrips(prev => prev.filter(t => t.id !== id));
-    } finally {
-      setDeletingId(null);
-      setConfirmDeleteId(null);
+      setConfirmDelete(null);
+      fetchData();
+    } catch (err) {
+      console.error('Erro ao apagar corrida:', err);
     }
   };
 
@@ -92,9 +92,7 @@ export default function Trips() {
           <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}
             className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#1e293b] text-white text-sm appearance-none">
             <option value="">Todas as empresas</option>
-            {companies.map((c: any) => (
-              <option key={c.id} value={c.name}>{c.name}</option>
-            ))}
+            {companies.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
         </div>
         <input type="date" value={filterDay}
@@ -166,7 +164,7 @@ export default function Trips() {
                 <tr>
                   <td colSpan={5} className="text-center py-16 text-slate-500">
                     <Search size={36} className="mx-auto mb-3 opacity-30" />
-                    <p>Nenhuma corrida encontrada com os filtros aplicados.</p>
+                    <p>Nenhuma corrida encontrada.</p>
                   </td>
                 </tr>
               ) : filteredTrips.map((trip) => (
@@ -187,31 +185,22 @@ export default function Trips() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm font-bold text-emerald-400">
-                      {(trip.km_end || 0) - (trip.km_start || 0)} KM
+                      {(Number(trip.km_end) || 0) - (Number(trip.km_start) || 0)} KM
                     </div>
                     <div className="text-xs text-slate-500">{trip.km_start} - {trip.km_end}</div>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-end gap-1">
                       <button onClick={() => generateTripPDF(trip)}
-                        className="p-2 hover:bg-emerald-500/10 rounded-lg text-emerald-400 transition-colors inline-flex items-center gap-1 text-xs font-bold">
+                        className="p-2 hover:bg-emerald-500/10 rounded-lg text-emerald-400 transition-colors inline-flex items-center gap-1 text-xs font-bold"
+                        title="Baixar PDF">
                         <FileDown size={18} /> PDF
                       </button>
-                      {confirmDeleteId === trip.id ? (
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => handleDelete(trip.id)} disabled={deletingId === trip.id}
-                            className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 disabled:opacity-70">
-                            {deletingId === trip.id && <Loader2 size={11} className="animate-spin" />} Sim
-                          </button>
-                          <button onClick={() => setConfirmDeleteId(null)}
-                            className="px-2 py-1 bg-slate-700 text-slate-300 rounded-lg text-xs font-bold">Não</button>
-                        </div>
-                      ) : (
-                        <button onClick={() => setConfirmDeleteId(trip.id)}
-                          className="p-2 hover:bg-red-500/10 rounded-lg text-red-400 transition-colors" title="Apagar corrida">
-                          <Trash2 size={18} />
-                        </button>
-                      )}
+                      <button onClick={() => setConfirmDelete(trip.id)}
+                        className="p-2 hover:bg-red-500/10 rounded-lg text-red-400 hover:text-red-300 transition-colors"
+                        title="Apagar corrida">
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -220,6 +209,24 @@ export default function Trips() {
           </table>
         </div>
       </div>
+
+      {/* Modal Confirmar Exclusão */}
+      <AnimatePresence>
+        {confirmDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setConfirmDelete(null)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-[#1e293b] w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-red-500/30 p-6 text-center">
+              <Trash2 size={40} className="mx-auto text-red-400 mb-3" />
+              <h3 className="text-lg font-bold text-white mb-2">Apagar Corrida?</h3>
+              <p className="text-slate-400 text-sm mb-6">Esta ação não pode ser desfeita.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setConfirmDelete(null)} className="flex-1 px-4 py-2 rounded-xl bg-slate-700 text-white font-bold hover:bg-slate-600 transition-colors">Cancelar</button>
+                <button onClick={() => handleDelete(confirmDelete)} className="flex-1 px-4 py-2 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors">Apagar</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
