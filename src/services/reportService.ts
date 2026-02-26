@@ -20,37 +20,37 @@ async function getLogoBase64(): Promise<string | null> {
 }
 
 function addHeader(doc: any, logoBase64: string | null, subtitle?: string) {
-  // Green header bar
+  // Green header bar — maior para acomodar logo maior
   doc.setFillColor(16, 185, 129);
-  doc.rect(0, 0, 210, 45, 'F');
+  doc.rect(0, 0, 210, 55, 'F');
 
-  // Logo on left
+  // Logo maior à esquerda
   if (logoBase64) {
     try {
-      doc.addImage(logoBase64, 'PNG', 8, 5, 35, 35);
+      doc.addImage(logoBase64, 'PNG', 6, 4, 52, 46);
     } catch {}
   }
 
   // Company name
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
+  doc.setFontSize(15);
   doc.setFont('helvetica', 'bold');
-  doc.text(COMPANY_NAME, 47, 18);
+  doc.text(COMPANY_NAME, 62, 20);
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(COMPANY_CNPJ, 47, 25);
+  doc.text(COMPANY_CNPJ, 62, 28);
 
   if (subtitle) {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(subtitle, 47, 33);
+    doc.text(subtitle, 62, 38);
   }
 
   // Thin line below header
   doc.setDrawColor(255, 255, 255);
   doc.setLineWidth(0.5);
-  doc.line(0, 45, 210, 45);
+  doc.line(0, 55, 210, 55);
 }
 
 function addFooter(doc: any) {
@@ -71,10 +71,10 @@ export const generateTripPDF = async (trip: any) => {
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text('DADOS DO SERVIÇO', 14, 58);
+  doc.text('DADOS DO SERVIÇO', 14, 68);
   doc.setDrawColor(16, 185, 129);
   doc.setLineWidth(0.8);
-  doc.line(14, 61, 196, 61);
+  doc.line(14, 71, 196, 71);
 
   const data = [
     ['Empresa:', trip.company_name || ''],
@@ -92,7 +92,7 @@ export const generateTripPDF = async (trip: any) => {
   ];
 
   doc.autoTable({
-    startY: 65,
+    startY: 75,
     head: [],
     body: data,
     theme: 'plain',
@@ -159,7 +159,7 @@ export const generateGeneralReportPDF = async (
   addHeader(doc, logoBase64, title);
 
   doc.autoTable({
-    startY: 52,
+    startY: 62,
     head: [columns],
     body: data,
     theme: 'striped',
