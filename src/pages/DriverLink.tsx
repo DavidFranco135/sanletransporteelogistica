@@ -146,7 +146,7 @@ export default function DriverLink() {
   if (error || !service) return (
     <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4">
       <div className="bg-[#1e293b] p-8 rounded-2xl shadow-2xl max-w-md w-full text-center border border-slate-800">
-        <img src="/logo.png" alt="Sanle" className="h-16 w-auto mx-auto mb-6 opacity-60 object-contain" />
+        <img src="/logo.png" alt="Sanle" className="w-24 mx-auto mb-6 opacity-60" />
         <AlertCircle className="mx-auto text-red-500 mb-4" size={48} />
         <h1 className="text-2xl font-bold text-white mb-2">Ops!</h1>
         <p className="text-slate-400 mb-6">{error || 'Serviço não encontrado ou link inválido.'}</p>
@@ -165,7 +165,7 @@ export default function DriverLink() {
         animate={{ scale: 1, opacity: 1 }}
         className="bg-[#1e293b] p-8 rounded-2xl shadow-2xl max-w-md w-full text-center border border-emerald-500/20"
       >
-        <img src="/logo.png" alt="Sanle" className="h-20 w-auto mx-auto mb-6 object-contain" />
+        <img src="/logo.png" alt="Sanle" className="w-28 mx-auto mb-6" />
         <CheckCircle2 className="mx-auto text-emerald-500 mb-4" size={56} />
         <h1 className="text-2xl font-bold text-white mb-2">Serviço Finalizado!</h1>
         <p className="text-slate-400 mb-6">
@@ -190,14 +190,12 @@ export default function DriverLink() {
     <div className="min-h-screen bg-[#0f172a] pb-12">
       {/* CAPA — logo preenche toda a área verde */}
       <div className="bg-gradient-to-br from-emerald-700 to-emerald-500 text-white shadow-2xl relative overflow-hidden" style={{ minHeight: 220 }}>
-        <div className="flex items-center justify-center" style={{ minHeight: 160, padding: '16px 28px' }}>
-          <img
-            src="/logo.png"
-            alt="Sanle Transporte"
-            className="object-contain w-auto"
-            style={{ maxHeight: 130, maxWidth: '70%' }}
-          />
-        </div>
+        <img
+          src="/logo.png"
+          alt="Sanle Transporte"
+          className="w-full object-contain"
+          style={{ maxHeight: 190, padding: '10px 28px' }}
+        />
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-900/70 to-transparent px-6 py-4 text-center">
           <h1 className="text-lg font-bold">Ordem de Serviço</h1>
           <div className="inline-block bg-white/20 rounded-lg px-3 py-0.5 mt-1">
