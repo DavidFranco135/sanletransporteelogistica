@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Truck, MapPin, Navigation, CheckCircle2, Loader2, AlertCircle, Calendar, User, Clock, Gauge, PenTool, Save, Check } from 'lucide-react';
 import { getServiceByToken, acceptService, completeService } from '../services/firebaseService';
 import { generateTripPDF } from '../services/reportService';
+import { signInAnonymously } from 'firebase/auth';
+import { auth } from '../lib/firebase';
 
 export default function DriverLink() {
   const { token } = useParams();
@@ -37,6 +39,10 @@ export default function DriverLink() {
     if (!token) return;
     setLoading(true);
     try {
+      // Garante autenticação anônima para motoristas externos (sem login)
+      if (!auth.currentUser) {
+        await signInAnonymously(auth);
+      }
       const data = await getServiceByToken(token);
       if (!data) { setError('Serviço não encontrado ou link inválido.'); return; }
       setService(data);
@@ -193,7 +199,7 @@ export default function DriverLink() {
         <img
           src="/logo.png"
           alt="Sanle Transporte"
-          className="w-32 mx-auto mb-4 drop-shadow-xl"
+          className="w-52 mx-auto mb-5 drop-shadow-xl"
           style={{ filter: 'brightness(0) invert(1)' }}
         />
         <h1 className="text-2xl font-bold tracking-tight">Ordem de Serviço</h1>
