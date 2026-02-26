@@ -183,6 +183,10 @@ export async function getTrips() {
   return safeDocs('trips', 'date', 'desc');
 }
 
+export async function deleteTrip(id: string) {
+  return deleteDoc(doc(db, 'trips', id));
+}
+
 // ─── SERVICES ────────────────────────────────────────────────────────────────
 
 export async function getServices() {
