@@ -214,8 +214,7 @@ const openWaze = (address: string) => {
     <div className="min-h-screen bg-[#0f172a] pb-12">
       {/* Hero */}
       <div className="bg-gradient-to-br from-emerald-700 to-emerald-500 text-white px-6 pt-10 pb-16 text-center shadow-2xl">
-        <img src="/logo.png" alt="Sanle Transporte" className="w-32 mx-auto mb-4 drop-shadow-xl"
-          style={{ filter: 'brightness(0) invert(1)' }} />
+        <img src="/logo.png" alt="Sanle Transporte" className="w-32 mx-auto mb-4 drop-shadow-xl" />
         <h1 className="text-2xl font-bold tracking-tight">Ordem de Serviço</h1>
         <p className="text-emerald-100 text-sm mt-1">OS #{String(service?.os_number || '').toString().padStart(4, '0') || String(service?.id || '').slice(-4).toUpperCase()}</p>
         <p className="text-emerald-200/70 text-xs mt-1">Sanle Transportes Logística LTDA - ME</p>
