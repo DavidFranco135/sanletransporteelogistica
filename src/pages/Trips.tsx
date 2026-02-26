@@ -1,326 +1,356 @@
-import {
-  collection,
-  addDoc,
-  getDocs,
-  doc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  limit,
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { v4 as uuidv4 } from 'uuid';
+import React, { useEffect, useState } from 'react';
+import { FileDown, Search, Building2, X, Trash2, Edit2, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { getTrips, getCompanies, deleteTrip, updateTrip } from '../services/firebaseService';
+import { generateTripPDF, generateTripsReportPDF } from '../services/reportService';
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
+export default function Trips() {
+  const [trips, setTrips]                 = useState<any[]>([]);
+  const [filteredTrips, setFilteredTrips] = useState<any[]>([]);
+  const [companies, setCompanies]         = useState<any[]>([]);
+  const [searchTerm, setSearchTerm]       = useState('');
+  const [filterDay, setFilterDay]         = useState('');
+  const [filterMonth, setFilterMonth]     = useState('');
+  const [filterCompany, setFilterCompany] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-const toData = (snap: any) => ({ id: snap.id, ...snap.data() });
-
-// Busca segura: tenta com orderBy, cai para sem se não tiver índice
-async function safeDocs(col: string, field?: string, dir: 'asc' | 'desc' = 'asc') {
-  try {
-    const q = field
-      ? query(collection(db, col), orderBy(field, dir))
-      : collection(db, col);
-    const snap = await getDocs(q);
-    return snap.docs.map(toData);
-  } catch {
-    // Fallback sem orderBy (evita tela travada por falta de índice)
-    const snap = await getDocs(collection(db, col));
-    return snap.docs.map(toData);
-  }
-}
-
-// Upload de imagem via ImgBB
-async function uploadToImgBB(file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append('image', file);
-  const res = await fetch('https://api.imgbb.com/1/upload?key=24fdf2dc907cc3b17492621921d8af42', {
-    method: 'POST',
-    body: formData,
+  // ── edição ──
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTrip, setEditingTrip]     = useState<any>(null);
+  const [saving, setSaving]               = useState(false);
+  const [editForm, setEditForm] = useState({
+    date: '', origin: '', destination: '',
+    km_start: '', km_end: '', stopped_hours: '', stopped_reason: '',
   });
-  const data = await res.json();
-  if (!data.success) throw new Error('Falha no upload da imagem');
-  return data.data.url;
-}
 
-async function uploadFileToImgBB(file: File): Promise<string> {
-  if (file.type.startsWith('image/')) return uploadToImgBB(file);
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const base64 = (reader.result as string).split(',')[1];
-        const formData = new FormData();
-        formData.append('image', base64);
-        const res = await fetch('https://api.imgbb.com/1/upload?key=24fdf2dc907cc3b17492621921d8af42', {
-          method: 'POST', body: formData,
-        });
-        const data = await res.json();
-        resolve(data.success ? data.data.url : '');
-      } catch { resolve(''); }
-    };
-    reader.onerror = () => resolve('');
-    reader.readAsDataURL(file);
-  });
-}
+  const fetchData = async () => {
+    const [t, c] = await Promise.all([getTrips(), getCompanies()]);
+    setTrips(t);
+    setFilteredTrips(t);
+    setCompanies(c);
+  };
 
-// ─── COMPANIES ────────────────────────────────────────────────────────────────
+  useEffect(() => { fetchData(); }, []);
 
-export async function getCompanies() {
-  return safeDocs('companies', 'name');
-}
+  useEffect(() => {
+    let result = trips;
+    if (searchTerm)    result = result.filter(t =>
+      (t.company_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.driver_name  || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.origin       || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.destination  || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    if (filterCompany) result = result.filter(t => t.company_name === filterCompany);
+    if (filterDay)     result = result.filter(t => t.date === filterDay);
+    if (filterMonth)   result = result.filter(t => (t.date || '').startsWith(filterMonth));
+    setFilteredTrips(result);
+  }, [searchTerm, filterDay, filterMonth, filterCompany, trips]);
 
-export async function createCompany(data: any) {
-  return addDoc(collection(db, 'companies'), { ...data, created_at: serverTimestamp() });
-}
+  const clearFilters = () => {
+    setSearchTerm(''); setFilterDay(''); setFilterMonth(''); setFilterCompany('');
+  };
 
-// ✅ ADICIONADO — estava faltando, causava erro de importação
-export async function updateCompany(id: string, data: any) {
-  return updateDoc(doc(db, 'companies', id), data);
-}
+  const hasActiveFilter = !!(searchTerm || filterDay || filterMonth || filterCompany);
 
-export async function deleteCompany(id: string) {
-  return deleteDoc(doc(db, 'companies', id));
-}
-
-// ─── DRIVERS ─────────────────────────────────────────────────────────────────
-
-export async function getDrivers() {
-  return safeDocs('drivers', 'name');
-}
-
-export async function createDriver(data: any) {
-  return addDoc(collection(db, 'drivers'), { ...data, created_at: serverTimestamp() });
-}
-
-// ✅ ADICIONADO — estava faltando, causava erro de importação
-export async function updateDriver(id: string, data: any) {
-  return updateDoc(doc(db, 'drivers', id), data);
-}
-
-export async function deleteDriver(id: string) {
-  return deleteDoc(doc(db, 'drivers', id));
-}
-
-// ─── VEHICLES ────────────────────────────────────────────────────────────────
-
-export async function getVehicles() {
-  return safeDocs('vehicles', 'model');
-}
-
-export async function createVehicle(data: any, photoFile?: File | null) {
-  let photo_url = '';
-  if (photoFile) photo_url = await uploadToImgBB(photoFile);
-  return addDoc(collection(db, 'vehicles'), { ...data, photo_url, created_at: serverTimestamp() });
-}
-
-export async function updateVehicle(id: string, data: any, photoFile?: File | null) {
-  let update = { ...data };
-  if (photoFile) {
-    update.photo_url = await uploadToImgBB(photoFile);
-  }
-  return updateDoc(doc(db, 'vehicles', id), update);
-}
-
-export async function deleteVehicle(id: string) {
-  return deleteDoc(doc(db, 'vehicles', id));
-}
-
-// ─── CONTRACTS ───────────────────────────────────────────────────────────────
-
-export async function getContracts() {
-  return safeDocs('contracts', 'date', 'desc');
-}
-
-export async function createContract(data: any, file?: File | null) {
-  let file_url = '';
-  if (file) file_url = await uploadFileToImgBB(file);
-  return addDoc(collection(db, 'contracts'), { ...data, file_url, created_at: serverTimestamp() });
-}
-
-// ✅ ADICIONADO — estava faltando, causava erro de importação
-export async function updateContract(id: string, data: any) {
-  return updateDoc(doc(db, 'contracts', id), data);
-}
-
-export async function deleteContract(id: string) {
-  return deleteDoc(doc(db, 'contracts', id));
-}
-
-// ─── COLLABORATORS ────────────────────────────────────────────────────────────
-
-export async function getCollaborators() {
-  try {
-    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'collaborator')));
-    return snap.docs.map(toData);
-  } catch {
-    return [];
-  }
-}
-
-export async function createCollaborator(data: any) {
-  return addDoc(collection(db, 'users'), { ...data, role: 'collaborator', created_at: serverTimestamp() });
-}
-
-export async function updateCollaborator(id: string, data: any) {
-  return updateDoc(doc(db, 'users', id), data);
-}
-
-export async function deleteCollaborator(id: string) {
-  return deleteDoc(doc(db, 'users', id));
-}
-
-// ─── EXPENSES ────────────────────────────────────────────────────────────────
-
-export async function getExpenses() {
-  const rows = await safeDocs('expenses', 'date', 'desc');
-  return rows.map(r => ({ ...r, amount: Number(r.amount) || 0 }));
-}
-
-export async function createExpense(data: any) {
-  return addDoc(collection(db, 'expenses'), {
-    ...data,
-    amount: Number(data.amount),
-    created_at: serverTimestamp(),
-  });
-}
-
-// ─── TRIPS ───────────────────────────────────────────────────────────────────
-
-export async function getTrips() {
-  return safeDocs('trips', 'date', 'desc');
-}
-
-// ✅ ADICIONADO — necessário para edição de corridas em Trips.tsx
-export async function updateTrip(id: string, data: any) {
-  return updateDoc(doc(db, 'trips', id), data);
-}
-
-export async function deleteTrip(id: string) {
-  return deleteDoc(doc(db, 'trips', id));
-}
-
-// ─── SERVICES ────────────────────────────────────────────────────────────────
-
-export async function getServices() {
-  return safeDocs('services', 'created_at', 'desc');
-}
-
-async function getNextOsNumber(): Promise<number> {
-  try {
-    const snap = await getDocs(collection(db, 'services'));
-    let max = 0;
-    snap.docs.forEach(d => {
-      const n = d.data().os_number;
-      if (typeof n === 'number' && n > max) max = n;
+  const openEdit = (trip: any) => {
+    setEditingTrip(trip);
+    setEditForm({
+      date:           trip.date           || '',
+      origin:         trip.origin         || '',
+      destination:    trip.destination    || '',
+      km_start:       String(trip.km_start  ?? ''),
+      km_end:         String(trip.km_end    ?? ''),
+      stopped_hours:  String(trip.stopped_hours ?? ''),
+      stopped_reason: trip.stopped_reason || '',
     });
-    return max + 1;
-  } catch {
-    return 1;
-  }
-}
+    setShowEditModal(true);
+  };
 
-export async function createService(data: any) {
-  const token = uuidv4();
-  const os_number = await getNextOsNumber();
-  return addDoc(collection(db, 'services'), {
-    ...data,
-    token,
-    os_number,
-    status: 'pending',
-    created_at: serverTimestamp(),
-  });
-}
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTrip) return;
+    setSaving(true);
+    try {
+      await updateTrip(editingTrip.id, {
+        ...editForm,
+        km_start:      Number(editForm.km_start),
+        km_end:        Number(editForm.km_end),
+        stopped_hours: Number(editForm.stopped_hours || 0),
+      });
+      setShowEditModal(false);
+      setEditingTrip(null);
+      fetchData();
+    } catch (err) {
+      console.error('Erro ao editar corrida:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
-export async function updateService(id: string, data: any) {
-  return updateDoc(doc(db, 'services', id), data);
-}
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteTrip(id);
+      setConfirmDelete(null);
+      fetchData();
+    } catch (err) {
+      console.error('Erro ao apagar corrida:', err);
+    }
+  };
 
-export async function deleteService(id: string) {
-  return deleteDoc(doc(db, 'services', id));
-}
+  const exportReport = () => {
+    let period = '';
+    if (filterMonth) {
+      const [y, m] = filterMonth.split('-');
+      const lastDay = new Date(Number(y), Number(m), 0).getDate();
+      period = `01/${m}/${y} – ${lastDay}/${m}/${y}`;
+    } else if (filterDay) {
+      period = filterDay.split('-').reverse().join('/');
+    }
+    generateTripsReportPDF(filteredTrips, {
+      title: filterCompany ? `Corridas — ${filterCompany}` : 'Relatório Geral de Corridas',
+      period,
+    });
+  };
 
-export async function getServiceByToken(token: string) {
-  try {
-    const q = query(collection(db, 'services'), where('token', '==', token));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    return toData(snap.docs[0]);
-  } catch {
-    return null;
-  }
-}
+  const totalKm = filteredTrips.reduce(
+    (sum, t) => sum + ((Number(t.km_end) || 0) - (Number(t.km_start) || 0)), 0
+  );
 
-export async function acceptService(token: string) {
-  const service = await getServiceByToken(token);
-  if (!service) throw new Error('Serviço não encontrado');
-  await updateDoc(doc(db, 'services', service.id), { status: 'accepted' });
-  return service;
-}
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-white">Corridas Realizadas</h1>
+        <p className="text-slate-400">Histórico completo de viagens finalizadas.</p>
+      </div>
 
-export async function completeService(token: string, tripData: any) {
-  const service = await getServiceByToken(token);
-  if (!service) throw new Error('Serviço não encontrado');
+      {/* Filtros */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3">
+        <div className="relative lg:col-span-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={18} />
+          <input type="text" placeholder="Buscar motorista, rota..."
+            value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#1e293b] text-white text-sm" />
+        </div>
+        <div className="relative lg:col-span-3">
+          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={18} />
+          <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#1e293b] text-white text-sm appearance-none">
+            <option value="">Todas as empresas</option>
+            {companies.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
+        </div>
+        <input type="date" value={filterDay}
+          onChange={(e) => { setFilterDay(e.target.value); setFilterMonth(''); }}
+          className="lg:col-span-2 w-full px-4 py-3 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#1e293b] text-white text-sm" />
+        <input type="month" value={filterMonth}
+          onChange={(e) => { setFilterMonth(e.target.value); setFilterDay(''); }}
+          className="lg:col-span-2 w-full px-4 py-3 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#1e293b] text-white text-sm" />
+        <button onClick={clearFilters}
+          className="lg:col-span-1 bg-slate-700 text-white px-4 py-3 rounded-xl font-bold hover:bg-slate-600 transition-all border border-slate-600 text-sm">
+          Limpar
+        </button>
+        <button onClick={exportReport}
+          className="lg:col-span-1 bg-emerald-600 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-1 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20 text-sm">
+          <FileDown size={18} /> PDF
+        </button>
+      </div>
 
-  const tripDoc = await addDoc(collection(db, 'trips'), {
-    ...tripData,
-    service_id: service.id,
-    os_number: service.os_number,
-    company_id: service.company_id,
-    company_name: service.company_name,
-    driver_id: service.driver_id,
-    driver_name: service.driver_name,
-    vehicle_id: service.vehicle_id,
-    vehicle_model: service.vehicle_model,
-    plate: service.plate,
-    km_start: Number(tripData.km_start),
-    km_end: Number(tripData.km_end),
-    stopped_hours: Number(tripData.stopped_hours || 0),
-    created_at: serverTimestamp(),
-  });
+      {/* Badges filtros ativos */}
+      {hasActiveFilter && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500 font-medium">Filtros ativos:</span>
+          {filterCompany && (
+            <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-1 rounded-full">
+              <Building2 size={12} /> {filterCompany}
+              <button onClick={() => setFilterCompany('')} className="ml-1 hover:text-white"><X size={11} /></button>
+            </span>
+          )}
+          {filterDay && (
+            <span className="flex items-center gap-1 bg-blue-500/10 text-blue-400 border border-blue-500/30 text-xs font-bold px-3 py-1 rounded-full">
+              📅 {filterDay.split('-').reverse().join('/')}
+              <button onClick={() => setFilterDay('')} className="ml-1 hover:text-white"><X size={11} /></button>
+            </span>
+          )}
+          {filterMonth && (
+            <span className="flex items-center gap-1 bg-purple-500/10 text-purple-400 border border-purple-500/30 text-xs font-bold px-3 py-1 rounded-full">
+              📅 {filterMonth.split('-').reverse().join('/')}
+              <button onClick={() => setFilterMonth('')} className="ml-1 hover:text-white"><X size={11} /></button>
+            </span>
+          )}
+          {searchTerm && (
+            <span className="flex items-center gap-1 bg-slate-700 text-slate-300 border border-slate-600 text-xs font-bold px-3 py-1 rounded-full">
+              🔍 "{searchTerm}"
+              <button onClick={() => setSearchTerm('')} className="ml-1 hover:text-white"><X size={11} /></button>
+            </span>
+          )}
+          <span className="text-xs text-slate-500 ml-auto">
+            {filteredTrips.length} corrida{filteredTrips.length !== 1 ? 's' : ''}
+            {totalKm > 0 && <> · <span className="text-emerald-400 font-bold">{totalKm} km total</span></>}
+          </span>
+        </div>
+      )}
 
-  await updateDoc(doc(db, 'services', service.id), {
-    status: 'completed',
-    trip_id: tripDoc.id,
-  });
+      {/* Tabela */}
+      <div className="bg-[#1e293b] rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-[#0f172a] border-b border-slate-800">
+                <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider">Data</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider">Empresa / Motorista</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider">Rota</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider">KM</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {filteredTrips.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="text-center py-16 text-slate-500">
+                    <Search size={36} className="mx-auto mb-3 opacity-30" />
+                    <p>Nenhuma corrida encontrada.</p>
+                  </td>
+                </tr>
+              ) : filteredTrips.map((trip) => (
+                <tr key={trip.id} className="hover:bg-slate-800/50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-bold text-white">{trip.date}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-white">{trip.company_name}</div>
+                    <div className="text-sm text-slate-400">{trip.driver_name}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm text-slate-300 flex items-center gap-1">
+                      <span className="font-semibold">{trip.origin}</span>
+                      <span className="text-slate-600">→</span>
+                      <span className="font-semibold">{trip.destination}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-bold text-emerald-400">
+                      {(Number(trip.km_end) || 0) - (Number(trip.km_start) || 0)} KM
+                    </div>
+                    <div className="text-xs text-slate-500">{trip.km_start} - {trip.km_end}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-end gap-1">
+                      {/* ✅ ADICIONADO — botão de editar */}
+                      <button onClick={() => openEdit(trip)}
+                        className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors"
+                        title="Editar corrida">
+                        <Edit2 size={16} />
+                      </button>
+                      <button onClick={() => generateTripPDF(trip)}
+                        className="p-2 hover:bg-emerald-500/10 rounded-lg text-emerald-400 transition-colors inline-flex items-center gap-1 text-xs font-bold"
+                        title="Baixar PDF">
+                        <FileDown size={18} /> PDF
+                      </button>
+                      <button onClick={() => setConfirmDelete(trip.id)}
+                        className="p-2 hover:bg-red-500/10 rounded-lg text-red-400 hover:text-red-300 transition-colors"
+                        title="Apagar corrida">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-  // NÃO cria receita automática — usuário lança manualmente no Financeiro
-  return tripDoc;
-}
+      {/* ✅ ADICIONADO — Modal Editar Corrida */}
+      <AnimatePresence>
+        {showEditModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => !saving && setShowEditModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-[#1e293b] w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-700">
+              <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-emerald-600 text-white">
+                <h2 className="text-xl font-bold">Editar Corrida</h2>
+                <button onClick={() => !saving && setShowEditModal(false)} className="hover:bg-white/20 p-1 rounded-lg">
+                  <X size={24} />
+                </button>
+              </div>
+              <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-bold text-slate-400">Data</label>
+                  <input required type="date" value={editForm.date}
+                    onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-bold text-slate-400">Origem</label>
+                    <input required type="text" value={editForm.origin}
+                      onChange={(e) => setEditForm({ ...editForm, origin: e.target.value })}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-bold text-slate-400">Destino</label>
+                    <input required type="text" value={editForm.destination}
+                      onChange={(e) => setEditForm({ ...editForm, destination: e.target.value })}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-bold text-slate-400">KM Inicial</label>
+                    <input required type="number" value={editForm.km_start}
+                      onChange={(e) => setEditForm({ ...editForm, km_start: e.target.value })}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-bold text-slate-400">KM Final</label>
+                    <input required type="number" value={editForm.km_end}
+                      onChange={(e) => setEditForm({ ...editForm, km_end: e.target.value })}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-bold text-slate-400">Horas Parado</label>
+                    <input type="number" min="0" step="0.5" value={editForm.stopped_hours}
+                      onChange={(e) => setEditForm({ ...editForm, stopped_hours: e.target.value })}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-bold text-slate-400">Motivo da Parada</label>
+                    <input type="text" value={editForm.stopped_reason}
+                      onChange={(e) => setEditForm({ ...editForm, stopped_reason: e.target.value })}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
+                  </div>
+                </div>
+                <button type="submit" disabled={saving}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-70 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-900/20 transition-all mt-4 flex items-center justify-center gap-2">
+                  {saving ? <><Loader2 size={18} className="animate-spin" /> Salvando...</> : 'Salvar Alterações'}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
-// ─── DASHBOARD ────────────────────────────────────────────────────────────────
-
-export async function getDashboardStats() {
-  try {
-    const [tripsSnap, expensesSnap, driversSnap, companiesSnap, servicesSnap] = await Promise.all([
-      getDocs(collection(db, 'trips')).catch(() => ({ docs: [] })),
-      getDocs(collection(db, 'expenses')).catch(() => ({ docs: [] })),
-      getDocs(collection(db, 'drivers')).catch(() => ({ docs: [] })),
-      getDocs(collection(db, 'companies')).catch(() => ({ docs: [] })),
-      getDocs(collection(db, 'services')).catch(() => ({ docs: [] })),
-    ]);
-
-    const trips = tripsSnap.docs.length;
-    const expensesDocs = expensesSnap.docs.map(d => d.data());
-
-    const revenue = expensesDocs
-      .filter(e => e.type === 'income')
-      .reduce((a, c) => a + Number(c.amount), 0);
-
-    const totalExpenses = expensesDocs
-      .filter(e => e.type === 'expense')
-      .reduce((a, c) => a + Number(c.amount), 0);
-
-    const drivers = driversSnap.docs.length;
-    const companies = companiesSnap.docs.length;
-    const activeServices = servicesSnap.docs.filter(d => d.data().status === 'pending' || d.data().status === 'accepted').length;
-
-    return { trips, revenue, expenses: totalExpenses, drivers, companies, activeServices };
-  } catch (err) {
-    console.error('getDashboardStats error:', err);
-    return { trips: 0, revenue: 0, expenses: 0, drivers: 0, companies: 0, activeServices: 0 };
-  }
+      {/* Modal Confirmar Exclusão */}
+      <AnimatePresence>
+        {confirmDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setConfirmDelete(null)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-[#1e293b] w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-red-500/30 p-6 text-center">
+              <Trash2 size={40} className="mx-auto text-red-400 mb-3" />
+              <h3 className="text-lg font-bold text-white mb-2">Apagar Corrida?</h3>
+              <p className="text-slate-400 text-sm mb-6">Esta ação não pode ser desfeita.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setConfirmDelete(null)} className="flex-1 px-4 py-2 rounded-xl bg-slate-700 text-white font-bold hover:bg-slate-600 transition-colors">Cancelar</button>
+                <button onClick={() => handleDelete(confirmDelete)} className="flex-1 px-4 py-2 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors">Apagar</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
