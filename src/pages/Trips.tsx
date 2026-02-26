@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { FileDown, Search, Building2, X } from 'lucide-react';
-import { getTrips, getCompanies } from '../services/firebaseService';
+import { FileDown, Search, Building2, X, Trash2, Loader2 } from 'lucide-react';
+import { getTrips, getCompanies, deleteTrip } from '../services/firebaseService';
 import { generateTripPDF, generateTripsReportPDF } from '../services/reportService';
 
 export default function Trips() {
@@ -11,6 +11,8 @@ export default function Trips() {
   const [filterDay, setFilterDay]         = useState('');
   const [filterMonth, setFilterMonth]     = useState('');
   const [filterCompany, setFilterCompany] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId]           = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([getTrips(), getCompanies()]).then(([t, c]) => {
@@ -22,15 +24,15 @@ export default function Trips() {
 
   useEffect(() => {
     let result = trips;
-    if (searchTerm)     result = result.filter(t =>
+    if (searchTerm)    result = result.filter(t =>
       (t.company_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (t.driver_name  || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (t.origin       || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (t.destination  || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
-    if (filterCompany)  result = result.filter(t => t.company_name === filterCompany);
-    if (filterDay)      result = result.filter(t => t.date === filterDay);
-    if (filterMonth)    result = result.filter(t => (t.date || '').startsWith(filterMonth));
+    if (filterCompany) result = result.filter(t => t.company_name === filterCompany);
+    if (filterDay)     result = result.filter(t => t.date === filterDay);
+    if (filterMonth)   result = result.filter(t => (t.date || '').startsWith(filterMonth));
     setFilteredTrips(result);
   }, [searchTerm, filterDay, filterMonth, filterCompany, trips]);
 
@@ -39,6 +41,17 @@ export default function Trips() {
   };
 
   const hasActiveFilter = !!(searchTerm || filterDay || filterMonth || filterCompany);
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await deleteTrip(id);
+      setTrips(prev => prev.filter(t => t.id !== id));
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  };
 
   const exportReport = () => {
     let period = '';
@@ -68,15 +81,12 @@ export default function Trips() {
 
       {/* Filtros */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3">
-        {/* Busca */}
         <div className="relative lg:col-span-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={18} />
           <input type="text" placeholder="Buscar motorista, rota..."
             value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#1e293b] text-white text-sm" />
         </div>
-
-        {/* Empresa */}
         <div className="relative lg:col-span-3">
           <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" size={18} />
           <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}
@@ -87,31 +97,23 @@ export default function Trips() {
             ))}
           </select>
         </div>
-
-        {/* Data */}
         <input type="date" value={filterDay}
           onChange={(e) => { setFilterDay(e.target.value); setFilterMonth(''); }}
           className="lg:col-span-2 w-full px-4 py-3 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#1e293b] text-white text-sm" />
-
-        {/* Mês */}
         <input type="month" value={filterMonth}
           onChange={(e) => { setFilterMonth(e.target.value); setFilterDay(''); }}
           className="lg:col-span-2 w-full px-4 py-3 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#1e293b] text-white text-sm" />
-
-        {/* Limpar */}
         <button onClick={clearFilters}
           className="lg:col-span-1 bg-slate-700 text-white px-4 py-3 rounded-xl font-bold hover:bg-slate-600 transition-all border border-slate-600 text-sm">
           Limpar
         </button>
-
-        {/* PDF */}
         <button onClick={exportReport}
           className="lg:col-span-1 bg-emerald-600 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-1 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/20 text-sm">
           <FileDown size={18} /> PDF
         </button>
       </div>
 
-      {/* Badges de filtros ativos */}
+      {/* Badges filtros ativos */}
       {hasActiveFilter && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500 font-medium">Filtros ativos:</span>
@@ -156,7 +158,7 @@ export default function Trips() {
                 <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider">Empresa / Motorista</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider">Rota</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider">KM</th>
-                <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider text-right">PDF</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
@@ -190,10 +192,27 @@ export default function Trips() {
                     <div className="text-xs text-slate-500">{trip.km_start} - {trip.km_end}</div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button onClick={() => generateTripPDF(trip)}
-                      className="p-2 hover:bg-emerald-500/10 rounded-lg text-emerald-400 transition-colors inline-flex items-center gap-1 text-xs font-bold">
-                      <FileDown size={18} /> PDF
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => generateTripPDF(trip)}
+                        className="p-2 hover:bg-emerald-500/10 rounded-lg text-emerald-400 transition-colors inline-flex items-center gap-1 text-xs font-bold">
+                        <FileDown size={18} /> PDF
+                      </button>
+                      {confirmDeleteId === trip.id ? (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => handleDelete(trip.id)} disabled={deletingId === trip.id}
+                            className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 disabled:opacity-70">
+                            {deletingId === trip.id && <Loader2 size={11} className="animate-spin" />} Sim
+                          </button>
+                          <button onClick={() => setConfirmDeleteId(null)}
+                            className="px-2 py-1 bg-slate-700 text-slate-300 rounded-lg text-xs font-bold">Não</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteId(trip.id)}
+                          className="p-2 hover:bg-red-500/10 rounded-lg text-red-400 transition-colors" title="Apagar corrida">
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
