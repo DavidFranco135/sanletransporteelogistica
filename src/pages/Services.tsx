@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Copy, Check, MessageCircle, X, Edit2, Calendar, MapPin, User } from 'lucide-react';
+import { Plus, Copy, Check, MessageCircle, X, Edit2, Calendar, MapPin, User, Trash2, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getServices, createService, updateService, getCompanies, getDrivers, getVehicles } from '../services/firebaseService';
+import { getServices, createService, updateService, deleteService, getCompanies, getDrivers, getVehicles } from '../services/firebaseService';
 
 export default function Services() {
   const [services, setServices] = useState<any[]>([]);
@@ -12,6 +12,8 @@ export default function Services() {
   const [editingService, setEditingService] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     company_id: '', description: '', driver_id: '', vehicle_id: '',
     customer_name: '', origin: '', destination: '', scheduled_at: ''
@@ -19,13 +21,31 @@ export default function Services() {
 
   const fetchData = async () => {
     const [s, c, d, v] = await Promise.all([getServices(), getCompanies(), getDrivers(), getVehicles()]);
-    setServices(s);
-    setCompanies(c);
-    setDrivers(d);
-    setVehicles(v);
+    setServices(s); setCompanies(c); setDrivers(d); setVehicles(v);
     setLoading(false);
   };
   useEffect(() => { fetchData(); }, []);
+
+  const openNew = () => {
+    setEditingService(null);
+    setFormData({ company_id: '', description: '', driver_id: '', vehicle_id: '', customer_name: '', origin: '', destination: '', scheduled_at: '' });
+    setShowModal(true);
+  };
+
+  const openEditModal = (service: any) => {
+    setEditingService(service);
+    setFormData({
+      company_id: service.company_id || '',
+      description: service.description || '',
+      driver_id: service.driver_id || '',
+      vehicle_id: service.vehicle_id || '',
+      customer_name: service.customer_name || '',
+      origin: service.origin || '',
+      destination: service.destination || '',
+      scheduled_at: service.scheduled_at || ''
+    });
+    setShowModal(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,19 +70,15 @@ export default function Services() {
     fetchData();
   };
 
-  const openEditModal = (service: any) => {
-    setEditingService(service);
-    setFormData({
-      company_id: service.company_id || '',
-      description: service.description || '',
-      driver_id: service.driver_id || '',
-      vehicle_id: service.vehicle_id || '',
-      customer_name: service.customer_name || '',
-      origin: service.origin || '',
-      destination: service.destination || '',
-      scheduled_at: service.scheduled_at || ''
-    });
-    setShowModal(true);
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await deleteService(id);
+      setServices(prev => prev.filter(s => s.id !== id));
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
   };
 
   const copyLink = (serviceToken: string, id: string) => {
@@ -89,7 +105,7 @@ export default function Services() {
           <h1 className="text-2xl font-bold text-white">Serviços</h1>
           <p className="text-slate-400">Gerencie e crie novos serviços para motoristas.</p>
         </div>
-        <button onClick={() => { setEditingService(null); setFormData({ company_id: '', description: '', driver_id: '', vehicle_id: '', customer_name: '', origin: '', destination: '', scheduled_at: '' }); setShowModal(true); }}
+        <button onClick={openNew}
           className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2">
           <Plus size={20} /> Novo Serviço
         </button>
@@ -139,15 +155,32 @@ export default function Services() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => openEditModal(service)} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 transition-colors"><Edit2 size={18} /></button>
+                      <button onClick={() => openEditModal(service)} className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 transition-colors" title="Editar">
+                        <Edit2 size={18} />
+                      </button>
                       <button onClick={() => copyLink(service.token, service.id)}
                         className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 transition-colors flex items-center gap-1 text-xs font-bold">
                         {copiedId === service.id ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
                         {copiedId === service.id ? 'Copiado' : 'Link'}
                       </button>
-                      <button onClick={() => shareWhatsApp(service)} className="p-2 hover:bg-emerald-500/10 rounded-lg text-emerald-400 transition-colors">
+                      <button onClick={() => shareWhatsApp(service)} className="p-2 hover:bg-emerald-500/10 rounded-lg text-emerald-400 transition-colors" title="WhatsApp">
                         <MessageCircle size={18} />
                       </button>
+                      {confirmDeleteId === service.id ? (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => handleDelete(service.id)} disabled={deletingId === service.id}
+                            className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 disabled:opacity-70">
+                            {deletingId === service.id && <Loader2 size={11} className="animate-spin" />} Sim
+                          </button>
+                          <button onClick={() => setConfirmDeleteId(null)}
+                            className="px-2 py-1 bg-slate-700 text-slate-300 rounded-lg text-xs font-bold">Não</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteId(service.id)}
+                          className="p-2 hover:bg-red-500/10 rounded-lg text-red-400 transition-colors" title="Apagar">
+                          <Trash2 size={18} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
