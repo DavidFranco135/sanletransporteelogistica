@@ -2,13 +2,14 @@ import {
   collection,
   addDoc,
   getDocs,
-  getDoc,
   doc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
   serverTimestamp,
+  limit,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,6 +17,21 @@ import { v4 as uuidv4 } from 'uuid';
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 const toData = (snap: any) => ({ id: snap.id, ...snap.data() });
+
+// Busca segura: tenta com orderBy, cai para sem se não tiver índice
+async function safeDocs(col: string, field?: string, dir: 'asc' | 'desc' = 'asc') {
+  try {
+    const q = field
+      ? query(collection(db, col), orderBy(field, dir))
+      : collection(db, col);
+    const snap = await getDocs(q);
+    return snap.docs.map(toData);
+  } catch {
+    // Fallback sem orderBy (evita tela travada por falta de índice)
+    const snap = await getDocs(collection(db, col));
+    return snap.docs.map(toData);
+  }
+}
 
 // Upload de imagem via ImgBB
 async function uploadToImgBB(file: File): Promise<string> {
@@ -30,14 +46,9 @@ async function uploadToImgBB(file: File): Promise<string> {
   return data.data.url;
 }
 
-// Upload de arquivo genérico (PDF/imagem) via ImgBB
 async function uploadFileToImgBB(file: File): Promise<string> {
-  // ImgBB só aceita imagens; para PDFs apenas retorna URL vazia por enquanto
-  if (file.type.startsWith('image/')) {
-    return uploadToImgBB(file);
-  }
-  // Para PDFs, converte para base64 e usa ImgBB mesmo assim
-  return new Promise((resolve, reject) => {
+  if (file.type.startsWith('image/')) return uploadToImgBB(file);
+  return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = async () => {
       try {
@@ -45,15 +56,11 @@ async function uploadFileToImgBB(file: File): Promise<string> {
         const formData = new FormData();
         formData.append('image', base64);
         const res = await fetch('https://api.imgbb.com/1/upload?key=24fdf2dc907cc3b17492621921d8af42', {
-          method: 'POST',
-          body: formData,
+          method: 'POST', body: formData,
         });
         const data = await res.json();
-        if (data.success) resolve(data.data.url);
-        else resolve(''); // PDF não suportado pelo ImgBB, salva sem arquivo
-      } catch {
-        resolve('');
-      }
+        resolve(data.success ? data.data.url : '');
+      } catch { resolve(''); }
     };
     reader.onerror = () => resolve('');
     reader.readAsDataURL(file);
@@ -63,112 +70,113 @@ async function uploadFileToImgBB(file: File): Promise<string> {
 // ─── COMPANIES ────────────────────────────────────────────────────────────────
 
 export async function getCompanies() {
-  const snap = await getDocs(query(collection(db, 'companies'), orderBy('name')));
-  return snap.docs.map(toData);
+  return safeDocs('companies', 'name');
 }
 
 export async function createCompany(data: any) {
   return addDoc(collection(db, 'companies'), { ...data, created_at: serverTimestamp() });
 }
 
+export async function deleteCompany(id: string) {
+  return deleteDoc(doc(db, 'companies', id));
+}
+
 // ─── DRIVERS ─────────────────────────────────────────────────────────────────
 
 export async function getDrivers() {
-  const snap = await getDocs(query(collection(db, 'drivers'), orderBy('name')));
-  return snap.docs.map(toData);
+  return safeDocs('drivers', 'name');
 }
 
 export async function createDriver(data: any) {
   return addDoc(collection(db, 'drivers'), { ...data, created_at: serverTimestamp() });
 }
 
-// ─── VEHICLES ─────────────────────────────────────────────────────────────────
+export async function deleteDriver(id: string) {
+  return deleteDoc(doc(db, 'drivers', id));
+}
+
+// ─── VEHICLES ────────────────────────────────────────────────────────────────
 
 export async function getVehicles() {
-  const snap = await getDocs(query(collection(db, 'vehicles'), orderBy('model')));
-  return snap.docs.map(toData);
+  return safeDocs('vehicles', 'model');
 }
 
 export async function createVehicle(data: any, photoFile?: File | null) {
   let photo_url = '';
-  if (photoFile) {
-    photo_url = await uploadToImgBB(photoFile);
-  }
-  return addDoc(collection(db, 'vehicles'), {
-    ...data,
-    photo_url,
-    created_at: serverTimestamp()
-  });
+  if (photoFile) photo_url = await uploadToImgBB(photoFile);
+  return addDoc(collection(db, 'vehicles'), { ...data, photo_url, created_at: serverTimestamp() });
 }
 
-// ─── CONTRACTS ────────────────────────────────────────────────────────────────
+export async function deleteVehicle(id: string) {
+  return deleteDoc(doc(db, 'vehicles', id));
+}
+
+// ─── CONTRACTS ───────────────────────────────────────────────────────────────
 
 export async function getContracts() {
-  const snap = await getDocs(query(collection(db, 'contracts'), orderBy('date', 'desc')));
-  return snap.docs.map(toData);
+  return safeDocs('contracts', 'date', 'desc');
 }
 
 export async function createContract(data: any, file?: File | null) {
   let file_url = '';
-  if (file) {
-    file_url = await uploadFileToImgBB(file);
-  }
+  if (file) file_url = await uploadFileToImgBB(file);
   return addDoc(collection(db, 'contracts'), { ...data, file_url, created_at: serverTimestamp() });
 }
 
 // ─── COLLABORATORS ────────────────────────────────────────────────────────────
 
 export async function getCollaborators() {
-  const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'collaborator')));
-  return snap.docs.map(toData);
+  try {
+    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'collaborator')));
+    return snap.docs.map(toData);
+  } catch {
+    return [];
+  }
 }
 
 export async function createCollaborator(data: any) {
-  return addDoc(collection(db, 'users'), {
-    ...data,
-    role: 'collaborator',
-    created_at: serverTimestamp()
-  });
+  return addDoc(collection(db, 'users'), { ...data, role: 'collaborator', created_at: serverTimestamp() });
 }
 
-// ─── EXPENSES ─────────────────────────────────────────────────────────────────
+// ─── EXPENSES (sem auto-receita de corridas) ──────────────────────────────────
 
 export async function getExpenses() {
-  const snap = await getDocs(query(collection(db, 'expenses'), orderBy('date', 'desc')));
-  return snap.docs.map(d => ({ ...toData(d), amount: Number(toData(d).amount) }));
+  const rows = await safeDocs('expenses', 'date', 'desc');
+  return rows.map(r => ({ ...r, amount: Number(r.amount) || 0 }));
 }
 
 export async function createExpense(data: any) {
   return addDoc(collection(db, 'expenses'), {
     ...data,
     amount: Number(data.amount),
-    created_at: serverTimestamp()
+    created_at: serverTimestamp(),
   });
 }
 
-// ─── TRIPS ────────────────────────────────────────────────────────────────────
+// ─── TRIPS ───────────────────────────────────────────────────────────────────
 
 export async function getTrips() {
-  const snap = await getDocs(query(collection(db, 'trips'), orderBy('date', 'desc')));
-  return snap.docs.map(toData);
+  return safeDocs('trips', 'date', 'desc');
 }
 
-// ─── SERVICES ─────────────────────────────────────────────────────────────────
+// ─── SERVICES ────────────────────────────────────────────────────────────────
 
 export async function getServices() {
-  const snap = await getDocs(query(collection(db, 'services'), orderBy('created_at', 'desc')));
-  return snap.docs.map(toData);
+  return safeDocs('services', 'created_at', 'desc');
 }
 
-// Gera próximo número de OS sequencial (0001, 0002, ...)
 async function getNextOsNumber(): Promise<number> {
-  const snap = await getDocs(collection(db, 'services'));
-  let max = 0;
-  snap.docs.forEach(d => {
-    const n = d.data().os_number;
-    if (typeof n === 'number' && n > max) max = n;
-  });
-  return max + 1;
+  try {
+    const snap = await getDocs(collection(db, 'services'));
+    let max = 0;
+    snap.docs.forEach(d => {
+      const n = d.data().os_number;
+      if (typeof n === 'number' && n > max) max = n;
+    });
+    return max + 1;
+  } catch {
+    return 1;
+  }
 }
 
 export async function createService(data: any) {
@@ -179,7 +187,7 @@ export async function createService(data: any) {
     token,
     os_number,
     status: 'pending',
-    created_at: serverTimestamp()
+    created_at: serverTimestamp(),
   });
 }
 
@@ -187,11 +195,19 @@ export async function updateService(id: string, data: any) {
   return updateDoc(doc(db, 'services', id), data);
 }
 
+export async function deleteService(id: string) {
+  return deleteDoc(doc(db, 'services', id));
+}
+
 export async function getServiceByToken(token: string) {
-  const q = query(collection(db, 'services'), where('token', '==', token));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  return toData(snap.docs[0]);
+  try {
+    const q = query(collection(db, 'services'), where('token', '==', token));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    return toData(snap.docs[0]);
+  } catch {
+    return null;
+  }
 }
 
 export async function acceptService(token: string) {
@@ -208,6 +224,7 @@ export async function completeService(token: string, tripData: any) {
   const tripDoc = await addDoc(collection(db, 'trips'), {
     ...tripData,
     service_id: service.id,
+    os_number: service.os_number,
     company_id: service.company_id,
     company_name: service.company_name,
     driver_id: service.driver_id,
@@ -218,33 +235,49 @@ export async function completeService(token: string, tripData: any) {
     km_start: Number(tripData.km_start),
     km_end: Number(tripData.km_end),
     stopped_hours: Number(tripData.stopped_hours || 0),
-    created_at: serverTimestamp()
+    created_at: serverTimestamp(),
   });
 
   await updateDoc(doc(db, 'services', service.id), {
     status: 'completed',
-    trip_id: tripDoc.id
+    trip_id: tripDoc.id,
   });
 
+  // NÃO cria receita automática — usuário lança manualmente no Financeiro
   return tripDoc;
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 
 export async function getDashboardStats() {
-  const [tripsSnap, expensesSnap] = await Promise.all([
-    getDocs(collection(db, 'trips')),
-    getDocs(collection(db, 'expenses'))
-  ]);
+  try {
+    const [tripsSnap, expensesSnap, driversSnap, companiesSnap, servicesSnap] = await Promise.all([
+      getDocs(collection(db, 'trips')).catch(() => ({ docs: [] })),
+      getDocs(collection(db, 'expenses')).catch(() => ({ docs: [] })),
+      getDocs(collection(db, 'drivers')).catch(() => ({ docs: [] })),
+      getDocs(collection(db, 'companies')).catch(() => ({ docs: [] })),
+      getDocs(collection(db, 'services')).catch(() => ({ docs: [] })),
+    ]);
 
-  const trips = tripsSnap.docs.length;
-  const expenses = expensesSnap.docs.map(d => d.data());
-  const revenue = expenses
-    .filter(e => e.type === 'income')
-    .reduce((a, c) => a + Number(c.amount), 0) + trips * 450;
-  const totalExpenses = expenses
-    .filter(e => e.type === 'expense')
-    .reduce((a, c) => a + Number(c.amount), 0);
+    const trips = tripsSnap.docs.length;
+    const expensesDocs = expensesSnap.docs.map(d => d.data());
 
-  return { trips, revenue, expenses: totalExpenses };
+    // Receita = apenas lançamentos manuais (sem auto-cálculo de corridas)
+    const revenue = expensesDocs
+      .filter(e => e.type === 'income')
+      .reduce((a, c) => a + Number(c.amount), 0);
+
+    const totalExpenses = expensesDocs
+      .filter(e => e.type === 'expense')
+      .reduce((a, c) => a + Number(c.amount), 0);
+
+    const drivers = driversSnap.docs.length;
+    const companies = companiesSnap.docs.length;
+    const activeServices = servicesSnap.docs.filter(d => d.data().status === 'pending' || d.data().status === 'accepted').length;
+
+    return { trips, revenue, expenses: totalExpenses, drivers, companies, activeServices };
+  } catch (err) {
+    console.error('getDashboardStats error:', err);
+    return { trips: 0, revenue: 0, expenses: 0, drivers: 0, companies: 0, activeServices: 0 };
+  }
 }
