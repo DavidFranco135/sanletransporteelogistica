@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Copy, Check, MessageCircle, X, Edit2, Calendar, MapPin, User } from 'lucide-react';
+import { Plus, Copy, Check, MessageCircle, X, Edit2, Calendar, MapPin, User, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getServices, createService, updateService, getCompanies, getDrivers, getVehicles } from '../services/firebaseService';
+import { getServices, createService, updateService, deleteService, getCompanies, getDrivers, getVehicles } from '../services/firebaseService';
 
 export default function Services() {
   const [services, setServices] = useState<any[]>([]);
@@ -80,6 +80,12 @@ export default function Services() {
     window.open(`https://wa.me/${phone || ''}?text=${text}`, '_blank');
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Apagar este serviço? Esta ação não pode ser desfeita.')) return;
+    await deleteService(id);
+    fetchData();
+  };
+
   if (loading) return <div className="text-slate-400 animate-pulse p-8">Carregando...</div>;
 
   return (
@@ -145,6 +151,9 @@ export default function Services() {
                       </button>
                       <button onClick={() => shareWhatsApp(service)} className="p-2 hover:bg-emerald-500/10 rounded-lg text-emerald-400 transition-colors">
                         <MessageCircle size={18} />
+                      </button>
+                      <button onClick={() => handleDelete(service.id)} className="p-2 hover:bg-red-500/10 rounded-lg text-red-400 transition-colors" title="Apagar serviço">
+                        <Trash2 size={18} />
                       </button>
                     </div>
                   </td>
