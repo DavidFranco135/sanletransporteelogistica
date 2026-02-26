@@ -5,6 +5,7 @@ import {
   getDoc,
   doc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -71,6 +72,10 @@ export async function createCompany(data: any) {
   return addDoc(collection(db, 'companies'), { ...data, created_at: serverTimestamp() });
 }
 
+export async function deleteCompany(id: string) {
+  return deleteDoc(doc(db, 'companies', id));
+}
+
 // ─── DRIVERS ─────────────────────────────────────────────────────────────────
 
 export async function getDrivers() {
@@ -80,6 +85,10 @@ export async function getDrivers() {
 
 export async function createDriver(data: any) {
   return addDoc(collection(db, 'drivers'), { ...data, created_at: serverTimestamp() });
+}
+
+export async function deleteDriver(id: string) {
+  return deleteDoc(doc(db, 'drivers', id));
 }
 
 // ─── VEHICLES ─────────────────────────────────────────────────────────────────
@@ -172,6 +181,10 @@ export async function createService(data: any) {
 
 export async function updateService(id: string, data: any) {
   return updateDoc(doc(db, 'services', id), data);
+}
+
+export async function deleteService(id: string) {
+  return deleteDoc(doc(db, 'services', id));
 }
 
 export async function getServiceByToken(token: string) {
