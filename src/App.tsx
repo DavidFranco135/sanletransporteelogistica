@@ -14,13 +14,26 @@ import Financial from './pages/Financial';
 import Collaborators from './pages/Collaborators';
 import DriverLink from './pages/DriverLink';
 
+// Mapeamento de permission ID → rota real
+const PERMISSION_ROUTES: Record<string, string> = {
+  dashboard: '/',
+  trips:     '/corridas',
+  services:  '/servicos',
+  companies: '/empresas',
+  drivers:   '/motoristas',
+  vehicles:  '/carros',
+  contracts: '/contratos',
+  finance:   '/financeiro',
+};
+
 const ProtectedRoute = ({ children, pageId }: { children: React.ReactNode; pageId: string }) => {
   const { user, token } = useAuthStore();
   if (!token || !user) return <Navigate to="/login" replace />;
   if (user.role === 'admin') return <Layout>{children}</Layout>;
   if (user.permissions?.includes(pageId)) return <Layout>{children}</Layout>;
-  const first = user.permissions?.[0];
-  if (first) return <Navigate to={first === 'dashboard' ? '/' : `/${first}`} replace />;
+  // Redireciona para a primeira página que o colaborador tem acesso
+  const first = user.permissions?.find(p => PERMISSION_ROUTES[p]);
+  if (first) return <Navigate to={PERMISSION_ROUTES[first]} replace />;
   return <Navigate to="/login" replace />;
 };
 
