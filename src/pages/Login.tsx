@@ -20,11 +20,12 @@ export default function Login() {
       await loginWithEmail(email, password);
       navigate('/');
     } catch (err: any) {
-      const msg = err?.code === 'auth/invalid-credential' || err?.code === 'auth/wrong-password'
-        ? 'Email ou senha incorretos.'
-        : err?.code === 'auth/user-not-found'
-        ? 'Usuário não encontrado.'
-        : 'Erro ao fazer login. Tente novamente.';
+      const msg =
+        err?.code === 'auth/invalid-credential' || err?.code === 'auth/wrong-password'
+          ? 'Email ou senha incorretos.'
+          : err?.code === 'auth/user-not-found'
+          ? 'Usuário não encontrado.'
+          : 'Erro ao fazer login. Tente novamente.';
       setError(msg);
     } finally {
       setLoading(false);
@@ -39,25 +40,30 @@ export default function Login() {
         className="w-full max-w-md"
       >
         <div className="bg-[#1e293b] rounded-2xl shadow-2xl overflow-hidden border border-slate-800">
-          {/* Header with logo */}
-          <div className="p-8 bg-emerald-600 text-white text-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-28 h-28 bg-white rounded-2xl flex items-center justify-center shadow-xl overflow-hidden border-4 border-white/30">
-                <img
-                  src="/logo.png"
-                  alt="Sanle Transporte"
-                  className="w-full h-full object-contain p-1"
-                />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">Sanle Transporte</h1>
-                <p className="text-emerald-100 mt-1 text-sm">Acesse o painel administrativo</p>
-                <p className="text-emerald-200/70 text-xs mt-1">CNPJ: 46.265.852/0001-01</p>
-              </div>
+
+          {/* ── Área verde com logo preenchendo tudo ── */}
+          <div className="bg-emerald-600 relative overflow-hidden" style={{ minHeight: 220 }}>
+            {/* Logo ocupa toda a área verde */}
+            <img
+              src="/logo.png"
+              alt="Sanle Transporte"
+              className="w-full h-full object-contain absolute inset-0"
+              style={{ padding: '12px 24px' }}
+            />
+            {/* Overlay sutil embaixo com nome */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-800/70 to-transparent px-6 py-4 text-center">
+              <p className="text-emerald-100 text-sm font-medium">Sistema de Gestão</p>
+              <p className="text-emerald-200/70 text-xs">CNPJ: 46.265.852/0001-01</p>
             </div>
           </div>
 
+          {/* ── Formulário ── */}
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            <div className="text-center mb-2">
+              <h1 className="text-xl font-bold text-white">Acesse o painel</h1>
+              <p className="text-slate-400 text-sm">Entre com suas credenciais</p>
+            </div>
+
             {error && (
               <div className="bg-red-500/10 text-red-400 p-4 rounded-lg text-sm font-medium border border-red-500/20">
                 {error}
@@ -71,7 +77,7 @@ export default function Login() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-slate-700 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-[#0f172a] text-white"
                 placeholder="seu@email.com"
                 required
@@ -85,7 +91,7 @@ export default function Login() {
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-slate-700 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-[#0f172a] text-white"
                 placeholder="••••••"
                 required
@@ -97,7 +103,7 @@ export default function Login() {
               disabled={loading}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
             >
-              {loading ? <Loader2 className="animate-spin" /> : 'Entrar no Sistema'}
+              {loading ? <Loader2 className="animate-spin" size={20} /> : 'Entrar no Sistema'}
             </button>
           </form>
         </div>
