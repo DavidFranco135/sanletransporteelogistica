@@ -5,29 +5,59 @@ import {
   getDoc,
   doc,
   updateDoc,
-  deleteDoc,
   query,
   where,
   orderBy,
   serverTimestamp,
-  Timestamp
 } from 'firebase/firestore';
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL
-} from 'firebase/storage';
-import { db, storage } from '../lib/firebase';
+import { db } from '../lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 const toData = (snap: any) => ({ id: snap.id, ...snap.data() });
 
-async function uploadFile(file: File, path: string): Promise<string> {
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+// Upload de imagem via ImgBB
+async function uploadToImgBB(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('image', file);
+  const res = await fetch('https://api.imgbb.com/1/upload?key=24fdf2dc907cc3b17492621921d8af42', {
+    method: 'POST',
+    body: formData,
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error('Falha no upload da imagem');
+  return data.data.url;
+}
+
+// Upload de arquivo genérico (PDF/imagem) via ImgBB
+async function uploadFileToImgBB(file: File): Promise<string> {
+  // ImgBB só aceita imagens; para PDFs apenas retorna URL vazia por enquanto
+  if (file.type.startsWith('image/')) {
+    return uploadToImgBB(file);
+  }
+  // Para PDFs, converte para base64 e usa ImgBB mesmo assim
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64 = (reader.result as string).split(',')[1];
+        const formData = new FormData();
+        formData.append('image', base64);
+        const res = await fetch('https://api.imgbb.com/1/upload?key=24fdf2dc907cc3b17492621921d8af42', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.success) resolve(data.data.url);
+        else resolve(''); // PDF não suportado pelo ImgBB, salva sem arquivo
+      } catch {
+        resolve('');
+      }
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
 }
 
 // ─── COMPANIES ────────────────────────────────────────────────────────────────
@@ -62,9 +92,13 @@ export async function getVehicles() {
 export async function createVehicle(data: any, photoFile?: File | null) {
   let photo_url = '';
   if (photoFile) {
-    photo_url = await uploadFile(photoFile, `vehicles/${Date.now()}_${photoFile.name}`);
+    photo_url = await uploadToImgBB(photoFile);
   }
-  return addDoc(collection(db, 'vehicles'), { ...data, photo_url, created_at: serverTimestamp() });
+  return addDoc(collection(db, 'vehicles'), {
+    ...data,
+    photo_url,
+    created_at: serverTimestamp()
+  });
 }
 
 // ─── CONTRACTS ────────────────────────────────────────────────────────────────
@@ -77,7 +111,7 @@ export async function getContracts() {
 export async function createContract(data: any, file?: File | null) {
   let file_url = '';
   if (file) {
-    file_url = await uploadFile(file, `contracts/${Date.now()}_${file.name}`);
+    file_url = await uploadFileToImgBB(file);
   }
   return addDoc(collection(db, 'contracts'), { ...data, file_url, created_at: serverTimestamp() });
 }
@@ -90,8 +124,6 @@ export async function getCollaborators() {
 }
 
 export async function createCollaborator(data: any) {
-  // In Firebase Auth we'd create user; here we store profile in Firestore
-  // For simplicity, store credentials in Firestore (in production, use Firebase Auth Admin)
   return addDoc(collection(db, 'users'), {
     ...data,
     role: 'collaborator',
@@ -103,10 +135,7 @@ export async function createCollaborator(data: any) {
 
 export async function getExpenses() {
   const snap = await getDocs(query(collection(db, 'expenses'), orderBy('date', 'desc')));
-  return snap.docs.map(d => ({
-    ...toData(d),
-    amount: Number(toData(d).amount)
-  }));
+  return snap.docs.map(d => ({ ...toData(d), amount: Number(toData(d).amount) }));
 }
 
 export async function createExpense(data: any) {
@@ -163,7 +192,6 @@ export async function completeService(token: string, tripData: any) {
   const service = await getServiceByToken(token);
   if (!service) throw new Error('Serviço não encontrado');
 
-  // Create trip record
   const tripDoc = await addDoc(collection(db, 'trips'), {
     ...tripData,
     service_id: service.id,
@@ -180,7 +208,6 @@ export async function completeService(token: string, tripData: any) {
     created_at: serverTimestamp()
   });
 
-  // Mark service completed
   await updateDoc(doc(db, 'services', service.id), {
     status: 'completed',
     trip_id: tripDoc.id
@@ -199,9 +226,12 @@ export async function getDashboardStats() {
 
   const trips = tripsSnap.docs.length;
   const expenses = expensesSnap.docs.map(d => d.data());
-  const revenue = expenses.filter(e => e.type === 'income').reduce((a, c) => a + Number(c.amount), 0)
-    + trips * 450;
-  const totalExpenses = expenses.filter(e => e.type === 'expense').reduce((a, c) => a + Number(c.amount), 0);
+  const revenue = expenses
+    .filter(e => e.type === 'income')
+    .reduce((a, c) => a + Number(c.amount), 0) + trips * 450;
+  const totalExpenses = expenses
+    .filter(e => e.type === 'expense')
+    .reduce((a, c) => a + Number(c.amount), 0);
 
   return { trips, revenue, expenses: totalExpenses };
 }
