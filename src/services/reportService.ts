@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 
 const COMPANY_NAME = 'SANLE TRANSPORTES LOGISTICA LTDA - ME';
 const COMPANY_CNPJ = 'CNPJ: 46.265.852/0001-01';
-const LOGO_URL     = '/logo_png.png';
+const LOGO_URL     = '/logo.png';
 
 export interface Trip {
   id?:             string | number;
@@ -59,8 +59,8 @@ async function getLogoInfo(): Promise<LogoInfo | null> {
 function addLogoToDoc(doc: jsPDF, logo: LogoInfo | null, boxX: number, boxY: number, boxW: number, boxH: number) {
   if (!logo) return;
   try {
-    (doc as any).setFillColor(255, 255, 255);
-    (doc as any).roundedRect(boxX, boxY, boxW, boxH, 3, 3, 'F');
+    // Sem caixa branca: logo renderiza sobre o header verde,
+    // garantindo visibilidade quando a logo tem fundo transparente com elementos claros/brancos
     const pad = 2; const maxW = boxW - pad * 2; const maxH = boxH - pad * 2;
     const ratio = logo.w / logo.h;
     let w: number, h: number;
