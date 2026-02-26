@@ -123,6 +123,10 @@ export async function createContract(data: any, file?: File | null) {
   return addDoc(collection(db, 'contracts'), { ...data, file_url, created_at: serverTimestamp() });
 }
 
+export async function deleteContract(id: string) {
+  return deleteDoc(doc(db, 'contracts', id));
+}
+
 // ─── COLLABORATORS ────────────────────────────────────────────────────────────
 
 export async function getCollaborators() {
