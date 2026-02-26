@@ -136,7 +136,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           
           <div className="flex items-center gap-4">
             <div className="hidden md:flex flex-col items-end">
-              <span className="text-xs text-slate-600 font-medium">©Niklaus</span>
+              <span className="text-sm font-medium text-slate-300">©Niklaus</span>
               <span className="text-sm font-medium text-slate-400">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
             </div>
           </div>
