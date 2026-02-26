@@ -77,6 +77,11 @@ export async function createCompany(data: any) {
   return addDoc(collection(db, 'companies'), { ...data, created_at: serverTimestamp() });
 }
 
+// ✅ ADICIONADO — estava faltando, causava erro de importação
+export async function updateCompany(id: string, data: any) {
+  return updateDoc(doc(db, 'companies', id), data);
+}
+
 export async function deleteCompany(id: string) {
   return deleteDoc(doc(db, 'companies', id));
 }
@@ -89,6 +94,11 @@ export async function getDrivers() {
 
 export async function createDriver(data: any) {
   return addDoc(collection(db, 'drivers'), { ...data, created_at: serverTimestamp() });
+}
+
+// ✅ ADICIONADO — estava faltando, causava erro de importação
+export async function updateDriver(id: string, data: any) {
+  return updateDoc(doc(db, 'drivers', id), data);
 }
 
 export async function deleteDriver(id: string) {
@@ -107,6 +117,14 @@ export async function createVehicle(data: any, photoFile?: File | null) {
   return addDoc(collection(db, 'vehicles'), { ...data, photo_url, created_at: serverTimestamp() });
 }
 
+export async function updateVehicle(id: string, data: any, photoFile?: File | null) {
+  let update = { ...data };
+  if (photoFile) {
+    update.photo_url = await uploadToImgBB(photoFile);
+  }
+  return updateDoc(doc(db, 'vehicles', id), update);
+}
+
 export async function deleteVehicle(id: string) {
   return deleteDoc(doc(db, 'vehicles', id));
 }
@@ -121,6 +139,11 @@ export async function createContract(data: any, file?: File | null) {
   let file_url = '';
   if (file) file_url = await uploadFileToImgBB(file);
   return addDoc(collection(db, 'contracts'), { ...data, file_url, created_at: serverTimestamp() });
+}
+
+// ✅ ADICIONADO — estava faltando, causava erro de importação
+export async function updateContract(id: string, data: any) {
+  return updateDoc(doc(db, 'contracts', id), data);
 }
 
 export async function deleteContract(id: string) {
@@ -142,7 +165,15 @@ export async function createCollaborator(data: any) {
   return addDoc(collection(db, 'users'), { ...data, role: 'collaborator', created_at: serverTimestamp() });
 }
 
-// ─── EXPENSES (sem auto-receita de corridas) ──────────────────────────────────
+export async function updateCollaborator(id: string, data: any) {
+  return updateDoc(doc(db, 'users', id), data);
+}
+
+export async function deleteCollaborator(id: string) {
+  return deleteDoc(doc(db, 'users', id));
+}
+
+// ─── EXPENSES ────────────────────────────────────────────────────────────────
 
 export async function getExpenses() {
   const rows = await safeDocs('expenses', 'date', 'desc');
@@ -161,6 +192,15 @@ export async function createExpense(data: any) {
 
 export async function getTrips() {
   return safeDocs('trips', 'date', 'desc');
+}
+
+// ✅ ADICIONADO — necessário para edição de corridas em Trips.tsx
+export async function updateTrip(id: string, data: any) {
+  return updateDoc(doc(db, 'trips', id), data);
+}
+
+export async function deleteTrip(id: string) {
+  return deleteDoc(doc(db, 'trips', id));
 }
 
 // ─── SERVICES ────────────────────────────────────────────────────────────────
@@ -251,27 +291,6 @@ export async function completeService(token: string, tripData: any) {
   return tripDoc;
 }
 
-
-export async function deleteCollaborator(id: string) {
-  return deleteDoc(doc(db, 'users', id));
-}
-
-export async function updateCollaborator(id: string, data: any) {
-  return updateDoc(doc(db, 'users', id), data);
-}
-
-export async function deleteTrip(id: string) {
-  return deleteDoc(doc(db, 'trips', id));
-}
-
-export async function updateVehicle(id: string, data: any, photoFile?: File | null) {
-  let update = { ...data };
-  if (photoFile) {
-    update.photo_url = await uploadToImgBB(photoFile);
-  }
-  return updateDoc(doc(db, 'vehicles', id), update);
-}
-
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 
 export async function getDashboardStats() {
@@ -287,7 +306,6 @@ export async function getDashboardStats() {
     const trips = tripsSnap.docs.length;
     const expensesDocs = expensesSnap.docs.map(d => d.data());
 
-    // Receita = apenas lançamentos manuais (sem auto-cálculo de corridas)
     const revenue = expensesDocs
       .filter(e => e.type === 'income')
       .reduce((a, c) => a + Number(c.amount), 0);
