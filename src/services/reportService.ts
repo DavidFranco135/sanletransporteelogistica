@@ -319,3 +319,58 @@ export const generateGeneralReportPDF = async (title: string, data: (string|numb
   for (let p=1; p<=total; p++) { doc.setPage(p); addFooter(doc, p, total); }
   downloadPDF(doc, `relatorio_${title.toLowerCase().replace(/\s+/g,'_')}.pdf`);
 };
+
+export const generateContractPDF = async (contract: any) => {
+  const doc = new jsPDF() as any;
+  const logoBase64 = await getLogoBase64();
+
+  addHeader(doc, logoBase64, 'Contrato de Prestação de Serviço');
+
+  doc.setTextColor(30, 41, 59);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DADOS DO CONTRATO', 14, 58);
+  doc.setDrawColor(16, 185, 129);
+  doc.setLineWidth(0.8);
+  doc.line(14, 61, 196, 61);
+
+  const data = [
+    ['Título:', contract.title || ''],
+    ['Data:', contract.date || ''],
+  ];
+
+  doc.autoTable({
+    startY: 65,
+    head: [],
+    body: data,
+    theme: 'plain',
+    styles: { fontSize: 11, cellPadding: 3, textColor: [30, 41, 59] },
+    columnStyles: { 0: { fontStyle: 'bold', cellWidth: 42, textColor: [16, 185, 129] } }
+  });
+
+  let y = doc.lastAutoTable.finalY + 10;
+
+  if (contract.description) {
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('DESCRIÇÃO / NOTAS', 14, y);
+    y += 7;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    const lines = doc.splitTextToSize(contract.description, 180);
+    doc.text(lines, 14, y);
+    y += lines.length * 5 + 10;
+  }
+
+  if (contract.file_url) {
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 116, 139);
+    doc.text('Arquivo original disponível em: ' + contract.file_url, 14, y, { maxWidth: 180 });
+  }
+
+  addFooter(doc);
+  doc.save(`contrato_${(contract.title || 'contrato').replace(/\s+/g, '_').toLowerCase()}.pdf`);
+};
