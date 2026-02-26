@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Search, Building2, Phone, MapPin, X } from 'lucide-react';
+import { Plus, Search, Building2, Phone, MapPin, X, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getCompanies, createCompany } from '../services/firebaseService';
+import { getCompanies, createCompany, deleteCompany } from '../services/firebaseService';
 
 export default function Companies() {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -11,6 +11,12 @@ export default function Companies() {
 
   const fetchData = async () => setCompanies(await getCompanies());
   useEffect(() => { fetchData(); }, []);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Apagar empresa "${name}"? Esta ação não pode ser desfeita.`)) return;
+    await deleteCompany(id);
+    fetchData();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,10 +53,17 @@ export default function Companies() {
               <div className="w-12 h-12 bg-[#0f172a] text-emerald-400 rounded-xl flex items-center justify-center border border-slate-800">
                 <Building2 size={24} />
               </div>
-              <div>
+              <div className="flex-1">
                 <h3 className="font-bold text-white">{company.name}</h3>
                 <p className="text-xs text-slate-500 uppercase font-bold">{company.cnpj}</p>
               </div>
+              <button
+                onClick={() => handleDelete(company.id, company.name)}
+                className="p-2 hover:bg-red-500/10 rounded-lg text-red-400 transition-colors"
+                title="Apagar empresa"
+              >
+                <Trash2 size={18} />
+              </button>
             </div>
             <div className="space-y-2 text-sm text-slate-400 mb-4">
               <div className="flex items-center gap-2"><MapPin size={16} className="text-slate-600" /><span className="truncate">{company.address}</span></div>
