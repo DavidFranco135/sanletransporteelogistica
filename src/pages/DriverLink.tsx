@@ -149,6 +149,19 @@ export default function DriverLink() {
 
   const totalKm = (parseFloat(formData.km_end) || 0) - (parseFloat(formData.km_start) || 0);
 
+// Abre navegação no Google Maps ou Waze
+const openMaps = (address: string) => {
+  const encoded = encodeURIComponent(address);
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank');
+};
+
+const openWaze = (address: string) => {
+  const encoded = encodeURIComponent(address);
+  window.open(`https://waze.com/ul?q=${encoded}&navigate=yes`, '_blank');
+};
+
+
+
   // ── LOADING ────────────────────────────────────────────────────────────────
   if (loading) return (
     <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center gap-4">
@@ -241,17 +254,45 @@ export default function DriverLink() {
               </div>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <MapPin size={18} className="text-red-400 mt-1" />
-                  <div>
+                  <MapPin size={18} className="text-red-400 mt-1 shrink-0" />
+                  <div className="flex-1 min-w-0">
                     <span className="text-[10px] text-slate-500 uppercase font-bold">Origem</span>
                     <p className="text-white font-bold">{service?.origin || 'N/A'}</p>
+                    {service?.origin && (
+                      <div className="flex gap-2 mt-2">
+                        <button type="button" onClick={() => openMaps(service.origin)}
+                          className="flex items-center gap-1 px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-lg text-[10px] font-bold transition-all">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                          Maps
+                        </button>
+                        <button type="button" onClick={() => openWaze(service.origin)}
+                          className="flex items-center gap-1 px-2 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 rounded-lg text-[10px] font-bold transition-all">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 6.63C19.08 4.45 16.89 3 14.35 3c-1.6 0-3.06.55-4.22 1.45C9.41 4.17 8.6 4 7.75 4 4.58 4 2 6.58 2 9.75c0 1.93.93 3.64 2.36 4.71L6 20h12l1.59-5.49C21.02 13.44 22 11.7 22 9.75c0-1.17-.18-2.12-.46-3.12z"/></svg>
+                          Waze
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Navigation size={18} className="text-blue-400 mt-1" />
-                  <div>
+                  <Navigation size={18} className="text-blue-400 mt-1 shrink-0" />
+                  <div className="flex-1 min-w-0">
                     <span className="text-[10px] text-slate-500 uppercase font-bold">Destino</span>
                     <p className="text-white font-bold">{service?.destination || 'N/A'}</p>
+                    {service?.destination && (
+                      <div className="flex gap-2 mt-2">
+                        <button type="button" onClick={() => openMaps(service.destination)}
+                          className="flex items-center gap-1 px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-lg text-[10px] font-bold transition-all">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                          Maps
+                        </button>
+                        <button type="button" onClick={() => openWaze(service.destination)}
+                          className="flex items-center gap-1 px-2 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 rounded-lg text-[10px] font-bold transition-all">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 6.63C19.08 4.45 16.89 3 14.35 3c-1.6 0-3.06.55-4.22 1.45C9.41 4.17 8.6 4 7.75 4 4.58 4 2 6.58 2 9.75c0 1.93.93 3.64 2.36 4.71L6 20h12l1.59-5.49C21.02 13.44 22 11.7 22 9.75c0-1.17-.18-2.12-.46-3.12z"/></svg>
+                          Waze
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
