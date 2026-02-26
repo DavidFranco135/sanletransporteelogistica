@@ -29,6 +29,7 @@ export default function DriverLink() {
     km_end: '',
     observations: '',
     user_name: '',
+    user_phone: '',
     finished_at: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     stopped_hours: '0',
     stopped_reason: ''
@@ -320,6 +321,13 @@ const openWaze = (address: string) => {
                       <input required type="text" placeholder="Nome de quem assina"
                         value={formData.user_name}
                         onChange={(e) => setFormData({ ...formData, user_name: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-400">Telefone do Usuário Transportado</label>
+                      <input type="tel" placeholder="(00) 00000-0000"
+                        value={formData.user_phone}
+                        onChange={(e) => setFormData({ ...formData, user_phone: e.target.value })}
                         className="w-full px-4 py-3 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
                     </div>
                     <div className="space-y-2">
