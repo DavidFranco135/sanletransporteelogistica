@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Search, FileText, Download, X, Calendar, Paperclip } from 'lucide-react';
+import { Plus, Search, FileText, Download, X, Calendar, Paperclip, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getContracts, createContract } from '../services/firebaseService';
+import { getContracts, createContract, deleteContract } from '../services/firebaseService';
 
 export default function Contracts() {
-  const [contracts, setContracts] = useState<any[]>([]);
-  const [showModal, setShowModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [formData, setFormData] = useState({ title: '', description: '', date: new Date().toISOString().split('T')[0] });
+  const [contracts, setContracts]             = useState<any[]>([]);
+  const [showModal, setShowModal]             = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<any | null>(null);
+  const [searchTerm, setSearchTerm]           = useState('');
+  const [file, setFile]                       = useState<File | null>(null);
+  const [formData, setFormData]               = useState({
+    title: '', description: '', date: new Date().toISOString().split('T')[0],
+  });
 
   const fetchData = async () => setContracts(await getContracts());
   useEffect(() => { fetchData(); }, []);
@@ -22,7 +25,15 @@ export default function Contracts() {
     fetchData();
   };
 
-  const filtered = contracts.filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase()));
+  const handleDelete = async (contract: any) => {
+    await deleteContract(contract.id, contract.file_url);
+    setShowDeleteModal(null);
+    fetchData();
+  };
+
+  const filtered = contracts.filter(c =>
+    c.title.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -31,44 +42,64 @@ export default function Contracts() {
           <h1 className="text-2xl font-bold text-white">Contratos</h1>
           <p className="text-slate-400">Gestão de documentos e contratos de prestação de serviço.</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2">
+        <button onClick={() => setShowModal(true)}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2">
           <Plus size={20} /> Novo Contrato
         </button>
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
-        <input type="text" placeholder="Buscar contrato..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+        <input type="text" placeholder="Buscar contrato..." value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#1e293b] text-white" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filtered.map((contract) => (
-          <div key={contract.id} className="bg-[#1e293b] p-6 rounded-2xl border border-slate-800 shadow-xl flex items-start gap-4 hover:shadow-2xl transition-all">
-            <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20"><FileText size={24} /></div>
+          <div key={contract.id}
+            className="bg-[#1e293b] p-6 rounded-2xl border border-slate-800 shadow-xl flex items-start gap-4 hover:shadow-2xl transition-all group">
+            <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20 flex-shrink-0">
+              <FileText size={24} />
+            </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-bold text-white truncate">{contract.title}</h3>
-              <p className="text-sm text-slate-400 mb-2">{contract.description}</p>
-              <div className="flex items-center gap-4">
+              <p className="text-sm text-slate-400 mb-3">{contract.description}</p>
+              <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-1 text-xs text-slate-500">
                   <Calendar size={12} /> {contract.date}
                 </div>
                 {contract.file_url && (
-                  <a href={contract.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs font-bold text-emerald-400 hover:underline">
-                    <Download size={12} /> Baixar Arquivo
+                  <a href={contract.file_url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg transition-colors">
+                    <Download size={12} /> Baixar PDF
                   </a>
                 )}
               </div>
             </div>
+            <button onClick={() => setShowDeleteModal(contract)}
+              className="p-2 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg transition-all flex-shrink-0"
+              title="Apagar contrato">
+              <Trash2 size={18} />
+            </button>
           </div>
         ))}
+        {filtered.length === 0 && (
+          <div className="col-span-2 text-center py-16 text-slate-500">
+            <FileText size={40} className="mx-auto mb-3 opacity-30" />
+            <p>Nenhum contrato encontrado.</p>
+          </div>
+        )}
       </div>
 
+      {/* Modal Novo Contrato */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-[#1e293b] w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-700">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowModal(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-[#1e293b] w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-700">
               <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-emerald-600 text-white">
                 <h2 className="text-xl font-bold">Cadastrar Contrato</h2>
                 <button onClick={() => setShowModal(false)} className="hover:bg-white/20 p-1 rounded-lg"><X size={24} /></button>
@@ -76,28 +107,61 @@ export default function Contracts() {
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div className="space-y-1">
                   <label className="text-sm font-bold text-slate-400">Título do Contrato</label>
-                  <input required type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  <input required type="text" value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-bold text-slate-400">Data do Contrato</label>
-                  <input required type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  <input required type="date" value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-bold text-slate-400">Descrição / Notas</label>
-                  <textarea rows={2} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  <textarea rows={2} value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-bold text-slate-400">Arquivo do Contrato (PDF/Imagem)</label>
                   <div className="relative h-24 border-2 border-dashed border-slate-700 rounded-xl flex flex-col items-center justify-center text-slate-500 hover:border-emerald-500 hover:text-emerald-500 transition-all cursor-pointer bg-[#0f172a]">
                     <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} className="absolute inset-0 opacity-0 cursor-pointer" />
-                    {file ? <span className="text-emerald-400 font-bold">{file.name}</span> : <><Paperclip size={24} /><span className="text-xs mt-1">Anexar arquivo</span></>}
+                    {file ? <span className="text-emerald-400 font-bold text-sm px-4 text-center">{file.name}</span>
+                          : <><Paperclip size={24} /><span className="text-xs mt-1">Anexar arquivo</span></>}
                   </div>
                 </div>
-                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-900/20 transition-all mt-4">Salvar Contrato</button>
+                <button type="submit"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-900/20 transition-all mt-4">
+                  Salvar Contrato
+                </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Confirmar Delete */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowDeleteModal(null)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="relative bg-[#1e293b] w-full max-w-sm rounded-2xl shadow-2xl border border-slate-700 p-6 text-center">
+              <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+                <Trash2 size={26} className="text-red-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-1">Apagar Contrato</h3>
+              <p className="text-slate-400 text-sm mb-6">
+                Tem certeza que deseja apagar <span className="text-white font-bold">"{showDeleteModal.title}"</span>? Esta ação não pode ser desfeita.
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowDeleteModal(null)}
+                  className="flex-1 py-3 rounded-xl border border-slate-700 text-slate-300 font-bold hover:bg-slate-800 transition-all">Cancelar</button>
+                <button onClick={() => handleDelete(showDeleteModal)}
+                  className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-all">Apagar</button>
+              </div>
             </motion.div>
           </div>
         )}
