@@ -9,7 +9,6 @@ import {
   where,
   orderBy,
   serverTimestamp,
-  limit,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,7 +17,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 const toData = (snap: any) => ({ id: snap.id, ...snap.data() });
 
-// Busca segura: tenta com orderBy, cai para sem se não tiver índice
 async function safeDocs(col: string, field?: string, dir: 'asc' | 'desc' = 'asc') {
   try {
     const q = field
@@ -27,13 +25,11 @@ async function safeDocs(col: string, field?: string, dir: 'asc' | 'desc' = 'asc'
     const snap = await getDocs(q);
     return snap.docs.map(toData);
   } catch {
-    // Fallback sem orderBy (evita tela travada por falta de índice)
     const snap = await getDocs(collection(db, col));
     return snap.docs.map(toData);
   }
 }
 
-// Upload de imagem via ImgBB
 async function uploadToImgBB(file: File): Promise<string> {
   const formData = new FormData();
   formData.append('image', file);
@@ -77,6 +73,10 @@ export async function createCompany(data: any) {
   return addDoc(collection(db, 'companies'), { ...data, created_at: serverTimestamp() });
 }
 
+export async function updateCompany(id: string, data: any) {
+  return updateDoc(doc(db, 'companies', id), data);
+}
+
 export async function deleteCompany(id: string) {
   return deleteDoc(doc(db, 'companies', id));
 }
@@ -89,6 +89,10 @@ export async function getDrivers() {
 
 export async function createDriver(data: any) {
   return addDoc(collection(db, 'drivers'), { ...data, created_at: serverTimestamp() });
+}
+
+export async function updateDriver(id: string, data: any) {
+  return updateDoc(doc(db, 'drivers', id), data);
 }
 
 export async function deleteDriver(id: string) {
@@ -107,6 +111,10 @@ export async function createVehicle(data: any, photoFile?: File | null) {
   return addDoc(collection(db, 'vehicles'), { ...data, photo_url, created_at: serverTimestamp() });
 }
 
+export async function updateVehicle(id: string, data: any) {
+  return updateDoc(doc(db, 'vehicles', id), data);
+}
+
 export async function deleteVehicle(id: string) {
   return deleteDoc(doc(db, 'vehicles', id));
 }
@@ -121,6 +129,10 @@ export async function createContract(data: any, file?: File | null) {
   let file_url = '';
   if (file) file_url = await uploadFileToImgBB(file);
   return addDoc(collection(db, 'contracts'), { ...data, file_url, created_at: serverTimestamp() });
+}
+
+export async function updateContract(id: string, data: any) {
+  return updateDoc(doc(db, 'contracts', id), data);
 }
 
 export async function deleteContract(id: string) {
@@ -142,7 +154,11 @@ export async function createCollaborator(data: any) {
   return addDoc(collection(db, 'users'), { ...data, role: 'collaborator', created_at: serverTimestamp() });
 }
 
-// ─── EXPENSES (sem auto-receita de corridas) ──────────────────────────────────
+export async function deleteCollaborator(id: string) {
+  return deleteDoc(doc(db, 'users', id));
+}
+
+// ─── EXPENSES ─────────────────────────────────────────────────────────────────
 
 export async function getExpenses() {
   const rows = await safeDocs('expenses', 'date', 'desc');
@@ -155,6 +171,10 @@ export async function createExpense(data: any) {
     amount: Number(data.amount),
     created_at: serverTimestamp(),
   });
+}
+
+export async function deleteExpense(id: string) {
+  return deleteDoc(doc(db, 'expenses', id));
 }
 
 // ─── TRIPS ───────────────────────────────────────────────────────────────────
@@ -227,19 +247,19 @@ export async function completeService(token: string, tripData: any) {
 
   const tripDoc = await addDoc(collection(db, 'trips'), {
     ...tripData,
-    service_id: service.id,
-    os_number: service.os_number,
-    company_id: service.company_id,
-    company_name: service.company_name,
-    driver_id: service.driver_id,
-    driver_name: service.driver_name,
-    vehicle_id: service.vehicle_id,
+    service_id:    service.id,
+    os_number:     service.os_number,
+    company_id:    service.company_id,
+    company_name:  service.company_name,
+    driver_id:     service.driver_id,
+    driver_name:   service.driver_name,
+    vehicle_id:    service.vehicle_id,
     vehicle_model: service.vehicle_model,
-    plate: service.plate,
-    km_start: Number(tripData.km_start),
-    km_end: Number(tripData.km_end),
+    plate:         service.plate,
+    km_start:      Number(tripData.km_start),
+    km_end:        Number(tripData.km_end),
     stopped_hours: Number(tripData.stopped_hours || 0),
-    created_at: serverTimestamp(),
+    created_at:    serverTimestamp(),
   });
 
   await updateDoc(doc(db, 'services', service.id), {
@@ -247,7 +267,6 @@ export async function completeService(token: string, tripData: any) {
     trip_id: tripDoc.id,
   });
 
-  // NÃO cria receita automática — usuário lança manualmente no Financeiro
   return tripDoc;
 }
 
@@ -256,30 +275,26 @@ export async function completeService(token: string, tripData: any) {
 export async function getDashboardStats() {
   try {
     const [tripsSnap, expensesSnap, driversSnap, companiesSnap, servicesSnap] = await Promise.all([
-      getDocs(collection(db, 'trips')).catch(() => ({ docs: [] })),
-      getDocs(collection(db, 'expenses')).catch(() => ({ docs: [] })),
-      getDocs(collection(db, 'drivers')).catch(() => ({ docs: [] })),
-      getDocs(collection(db, 'companies')).catch(() => ({ docs: [] })),
-      getDocs(collection(db, 'services')).catch(() => ({ docs: [] })),
+      getDocs(collection(db, 'trips')).catch(() => ({ docs: [] as any[] })),
+      getDocs(collection(db, 'expenses')).catch(() => ({ docs: [] as any[] })),
+      getDocs(collection(db, 'drivers')).catch(() => ({ docs: [] as any[] })),
+      getDocs(collection(db, 'companies')).catch(() => ({ docs: [] as any[] })),
+      getDocs(collection(db, 'services')).catch(() => ({ docs: [] as any[] })),
     ]);
 
-    const trips = tripsSnap.docs.length;
-    const expensesDocs = expensesSnap.docs.map(d => d.data());
+    const expensesDocs = expensesSnap.docs.map((d: any) => d.data());
+    const revenue      = expensesDocs.filter(e => e.type === 'income').reduce((a, c) => a + Number(c.amount), 0);
+    const totalExpenses = expensesDocs.filter(e => e.type === 'expense').reduce((a, c) => a + Number(c.amount), 0);
+    const activeServices = servicesSnap.docs.filter((d: any) => ['pending', 'accepted'].includes(d.data().status)).length;
 
-    // Receita = apenas lançamentos manuais (sem auto-cálculo de corridas)
-    const revenue = expensesDocs
-      .filter(e => e.type === 'income')
-      .reduce((a, c) => a + Number(c.amount), 0);
-
-    const totalExpenses = expensesDocs
-      .filter(e => e.type === 'expense')
-      .reduce((a, c) => a + Number(c.amount), 0);
-
-    const drivers = driversSnap.docs.length;
-    const companies = companiesSnap.docs.length;
-    const activeServices = servicesSnap.docs.filter(d => d.data().status === 'pending' || d.data().status === 'accepted').length;
-
-    return { trips, revenue, expenses: totalExpenses, drivers, companies, activeServices };
+    return {
+      trips:          tripsSnap.docs.length,
+      revenue,
+      expenses:       totalExpenses,
+      drivers:        driversSnap.docs.length,
+      companies:      companiesSnap.docs.length,
+      activeServices,
+    };
   } catch (err) {
     console.error('getDashboardStats error:', err);
     return { trips: 0, revenue: 0, expenses: 0, drivers: 0, companies: 0, activeServices: 0 };
