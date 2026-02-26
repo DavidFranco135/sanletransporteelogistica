@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Search, Phone, X, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Search, Phone, X, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getDrivers, createDriver } from '../services/firebaseService';
+import { getDrivers, createDriver, deleteDriver } from '../services/firebaseService';
 
 export default function Drivers() {
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -11,6 +11,12 @@ export default function Drivers() {
 
   const fetchData = async () => setDrivers(await getDrivers());
   useEffect(() => { fetchData(); }, []);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Apagar motorista "${name}"? Esta ação não pode ser desfeita.`)) return;
+    await deleteDriver(id);
+    fetchData();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +55,7 @@ export default function Drivers() {
                 <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider">Documentos</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider">Contato</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-400 uppercase tracking-wider text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
@@ -76,6 +83,15 @@ export default function Drivers() {
                       {driver.status === 'active' ? <CheckCircle size={12} /> : <XCircle size={12} />}
                       {driver.status === 'active' ? 'Ativo' : 'Inativo'}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={() => handleDelete(driver.id, driver.name)}
+                      className="p-2 hover:bg-red-500/10 rounded-lg text-red-400 transition-colors"
+                      title="Apagar motorista"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </td>
                 </tr>
               ))}
