@@ -5,7 +5,6 @@ import {
   getDoc,
   doc,
   updateDoc,
-  deleteDoc,
   query,
   where,
   orderBy,
@@ -72,10 +71,6 @@ export async function createCompany(data: any) {
   return addDoc(collection(db, 'companies'), { ...data, created_at: serverTimestamp() });
 }
 
-export async function deleteCompany(id: string) {
-  return deleteDoc(doc(db, 'companies', id));
-}
-
 // ─── DRIVERS ─────────────────────────────────────────────────────────────────
 
 export async function getDrivers() {
@@ -85,10 +80,6 @@ export async function getDrivers() {
 
 export async function createDriver(data: any) {
   return addDoc(collection(db, 'drivers'), { ...data, created_at: serverTimestamp() });
-}
-
-export async function deleteDriver(id: string) {
-  return deleteDoc(doc(db, 'drivers', id));
 }
 
 // ─── VEHICLES ─────────────────────────────────────────────────────────────────
@@ -169,11 +160,24 @@ export async function getServices() {
   return snap.docs.map(toData);
 }
 
+// Gera próximo número de OS sequencial (0001, 0002, ...)
+async function getNextOsNumber(): Promise<number> {
+  const snap = await getDocs(collection(db, 'services'));
+  let max = 0;
+  snap.docs.forEach(d => {
+    const n = d.data().os_number;
+    if (typeof n === 'number' && n > max) max = n;
+  });
+  return max + 1;
+}
+
 export async function createService(data: any) {
   const token = uuidv4();
+  const os_number = await getNextOsNumber();
   return addDoc(collection(db, 'services'), {
     ...data,
     token,
+    os_number,
     status: 'pending',
     created_at: serverTimestamp()
   });
@@ -181,10 +185,6 @@ export async function createService(data: any) {
 
 export async function updateService(id: string, data: any) {
   return updateDoc(doc(db, 'services', id), data);
-}
-
-export async function deleteService(id: string) {
-  return deleteDoc(doc(db, 'services', id));
 }
 
 export async function getServiceByToken(token: string) {
