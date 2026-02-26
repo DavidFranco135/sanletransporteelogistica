@@ -109,7 +109,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-slate-500 text-xs mt-6">
-          &copy; {new Date().getFullYear()} Sanle Transportes Logística LTDA - ME — Todos os direitos reservados.
+          &copy; {new Date().getFullYear()} Sanle Transportes Logística LTDA - ME — PRODUZIDO POR ©NIKLAUS.
         </p>
       </motion.div>
     </div>
