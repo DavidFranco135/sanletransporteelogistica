@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, Shield, X, CheckSquare, Square } from 'lucide-react';
+import { Plus, Shield, X, CheckSquare, Square, Trash2, Edit2, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getCollaborators, createCollaborator } from '../services/firebaseService';
+import { getCollaborators, createCollaborator, updateCollaborator, deleteCollaborator } from '../services/firebaseService';
 
 const AVAILABLE_PAGES = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -18,18 +18,51 @@ const AVAILABLE_PAGES = [
 export default function Collaborators() {
   const [collaborators, setCollaborators] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [editingColab, setEditingColab] = useState<any>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { user: currentUser } = useAuthStore();
   const [formData, setFormData] = useState({ name: '', email: '', password: '', permissions: [] as string[] });
 
   const fetchData = async () => setCollaborators(await getCollaborators());
   useEffect(() => { fetchData(); }, []);
 
+  const openNew = () => {
+    setEditingColab(null);
+    setFormData({ name: '', email: '', password: '', permissions: [] });
+    setShowModal(true);
+  };
+
+  const openEdit = (c: any) => {
+    setEditingColab(c);
+    setFormData({ name: c.name || '', email: c.email || '', password: '', permissions: c.permissions || [] });
+    setShowModal(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createCollaborator(formData);
+    if (editingColab) {
+      const update: any = { name: formData.name, email: formData.email, permissions: formData.permissions };
+      if (formData.password) update.password = formData.password;
+      await updateCollaborator(editingColab.id, update);
+    } else {
+      await createCollaborator(formData);
+    }
     setShowModal(false);
+    setEditingColab(null);
     setFormData({ name: '', email: '', password: '', permissions: [] });
     fetchData();
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await deleteCollaborator(id);
+      setCollaborators(prev => prev.filter(c => c.id !== id));
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
   };
 
   const togglePermission = (perm: string) => {
@@ -60,7 +93,7 @@ export default function Collaborators() {
           <h1 className="text-2xl font-bold text-white">Colaboradores</h1>
           <p className="text-slate-400">Gerencie acessos e permissões da equipe.</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2">
+        <button onClick={openNew} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2">
           <Plus size={20} /> Novo Colaborador
         </button>
       </div>
@@ -77,7 +110,7 @@ export default function Collaborators() {
                 <p className="text-xs text-slate-500">{colab.email}</p>
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 mb-4">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Acessos Permitidos</span>
               <div className="flex flex-wrap gap-1">
                 {colab.permissions?.length > 0 ? colab.permissions.map((p: string) => (
@@ -86,6 +119,28 @@ export default function Collaborators() {
                   </span>
                 )) : <span className="text-xs text-slate-500 italic">Nenhum acesso especial</span>}
               </div>
+            </div>
+
+            <div className="flex gap-2 pt-3 border-t border-slate-800">
+              <button onClick={() => openEdit(colab)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-xs font-bold transition-all">
+                <Edit2 size={14} /> Editar
+              </button>
+              {confirmDeleteId === colab.id ? (
+                <div className="flex gap-1">
+                  <button onClick={() => handleDelete(colab.id)} disabled={deletingId === colab.id}
+                    className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 disabled:opacity-70">
+                    {deletingId === colab.id && <Loader2 size={12} className="animate-spin" />} Confirmar
+                  </button>
+                  <button onClick={() => setConfirmDeleteId(null)}
+                    className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg text-xs font-bold">Cancelar</button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmDeleteId(colab.id)}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-xs font-bold transition-all">
+                  <Trash2 size={14} /> Apagar
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -97,17 +152,28 @@ export default function Collaborators() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-[#1e293b] w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-700">
               <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-emerald-600 text-white">
-                <h2 className="text-xl font-bold">Cadastrar Colaborador</h2>
+                <h2 className="text-xl font-bold">{editingColab ? 'Editar Colaborador' : 'Cadastrar Colaborador'}</h2>
                 <button onClick={() => setShowModal(false)} className="hover:bg-white/20 p-1 rounded-lg"><X size={24} /></button>
               </div>
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                {[['name', 'Nome Completo', 'text'], ['email', 'Email de Login', 'email'], ['password', 'Senha Inicial', 'password']].map(([field, label, type]) => (
-                  <div key={field} className="space-y-1">
-                    <label className="text-sm font-bold text-slate-400">{label}</label>
-                    <input required type={type} value={(formData as any)[field]} onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
-                  </div>
-                ))}
+                <div className="space-y-1">
+                  <label className="text-sm font-bold text-slate-400">Nome Completo</label>
+                  <input required type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-bold text-slate-400">Email de Login</label>
+                  <input required type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-bold text-slate-400">
+                    Senha {editingColab && <span className="text-slate-600 font-normal">(deixe vazio para não alterar)</span>}
+                  </label>
+                  <input type="password" required={!editingColab} value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 bg-[#0f172a] text-white" />
+                </div>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-400">Janelas de Acesso</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -120,7 +186,9 @@ export default function Collaborators() {
                     ))}
                   </div>
                 </div>
-                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-900/20 transition-all mt-4">Criar Colaborador</button>
+                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-900/20 transition-all mt-4">
+                  {editingColab ? 'Salvar Alterações' : 'Criar Colaborador'}
+                </button>
               </form>
             </motion.div>
           </div>
