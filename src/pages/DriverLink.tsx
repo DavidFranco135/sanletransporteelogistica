@@ -83,14 +83,24 @@ export default function DriverLink() {
     }
   };
 
+  const getCanvasPos = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    };
+  };
+
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = ('touches' in e) ? e.touches[0].clientX - rect.left : (e as React.MouseEvent).clientX - rect.left;
-    const y = ('touches' in e) ? e.touches[0].clientY - rect.top : (e as React.MouseEvent).clientY - rect.top;
+    const clientX = ('touches' in e) ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = ('touches' in e) ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    const { x, y } = getCanvasPos(canvas, clientX, clientY);
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#000';
     ctx.beginPath();
@@ -105,9 +115,9 @@ export default function DriverLink() {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = ('touches' in e) ? e.touches[0].clientX - rect.left : (e as React.MouseEvent).clientX - rect.left;
-    const y = ('touches' in e) ? e.touches[0].clientY - rect.top : (e as React.MouseEvent).clientY - rect.top;
+    const clientX = ('touches' in e) ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = ('touches' in e) ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    const { x, y } = getCanvasPos(canvas, clientX, clientY);
     ctx.lineTo(x, y);
     ctx.stroke();
     setHasSignature(true);
