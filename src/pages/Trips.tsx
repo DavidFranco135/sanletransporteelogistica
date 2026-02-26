@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FileDown, Search } from 'lucide-react';
 import { getTrips } from '../services/firebaseService';
-import { generateTripPDF, generateGeneralReportPDF } from '../services/reportService';
+import { generateTripPDF, generateTripsReportPDF } from '../services/reportService';
 
 export default function Trips() {
   const [trips, setTrips] = useState<any[]>([]);
@@ -30,14 +30,21 @@ export default function Trips() {
   }, [searchTerm, filterDay, filterMonth, trips]);
 
   const exportReport = () => {
-    const data = filteredTrips.map(t => [
-      t.date || '',
-      t.company_name || '',
-      t.driver_name || '',
-      `${t.origin || ''} → ${t.destination || ''}`,
-      `${(t.km_end || 0) - (t.km_start || 0)} KM`
-    ]);
-    generateGeneralReportPDF('Relatório de Corridas', data, ['Data', 'Empresa', 'Motorista', 'Rota', 'KM']);
+    // Monta o texto do período com base no filtro ativo
+    let period = '';
+    if (filterMonth) {
+      const [y, m] = filterMonth.split('-');
+      const lastDay = new Date(Number(y), Number(m), 0).getDate();
+      period = `01/${m}/${y} – ${lastDay}/${m}/${y}`;
+    } else if (filterDay) {
+      period = filterDay.split('-').reverse().join('/');
+    }
+
+    // Passa os objetos de corrida completos para a nova função
+    generateTripsReportPDF(filteredTrips, {
+      title: 'Relatório Geral de Corridas',
+      period,
+    });
   };
 
   return (
